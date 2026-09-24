@@ -1,0 +1,135 @@
+<?php
+
+namespace App\Models;
+
+use Database\Factories\PersonalRecordFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+
+class PersonalRecord extends Model
+{
+    /** @use HasFactory<PersonalRecordFactory> */
+    use HasFactory;
+
+    protected $fillable = [
+        'user_id',
+        'exercise_id',
+        'exercise_set_id',
+        'record_type',
+        'value',
+        'achieved_at',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'value' => 'decimal:2',
+            'achieved_at' => 'datetime',
+        ];
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function exercise(): BelongsTo
+    {
+        return $this->belongsTo(Exercise::class);
+    }
+
+    public function exerciseSet(): BelongsTo
+    {
+        return $this->belongsTo(ExerciseSet::class);
+    }
+
+    /**
+     * The value a set scores for the given record type.
+     */
+    public static function valueFromSet(string $recordType, ExerciseSet $set): float
+    {
+        return (float) match ($recordType) {
+            'max_weight' => $set->weight_kg,
+            'max_reps' => $set->reps,
+            'max_volume' => $set->volume,
+            'max_duration' => $set->duration_seconds,
+            'max_distance' => $set->distance_meters,
+            default => 0,
+        };
+    }
+
+    /**
+     * Pick the best completed working set for each record type the exercise tracks.
+     *
+     * Warmup and incomplete sets never count. On a tie the earliest set wins,
+     * so sets must be passed in chronological order.
+     *
+     * @param  iterable<ExerciseSet>  $sets
+     * @return array<string, array{set: ExerciseSet, value: float}>
+     */
+    public static function bestSets(Exercise $exercise, iterable $sets): array
+    {
+        $best = [];
+
+        foreach ($sets as $set) {
+            if (! $set->is_completed || $set->set_type === 'warmup') {
+                continue;
+            }
+
+            foreach ($exercise->personalRecordTypes() as $recordType) {
+                $value = self::valueFromSet($recordType, $set);
+
+                if ($value > 0 && $value > ($best[$recordType]['value'] ?? 0)) {
+                    $best[$recordType] = ['set' => $set, 'value' => $value];
+                }
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * Rebuild a user's records for the given exercises from their completed workout history.
+     *
+     * @param  iterable<int>  $exerciseIds
+     */
+    public static function recalculate(int $userId, iterable $exerciseIds): void
+    {
+        $exercises = Exercise::query()->whereIn('id', Collection::make($exerciseIds)->unique()->values())->get();
+
+        DB::transaction(function () use ($userId, $exercises) {
+            foreach ($exercises as $exercise) {
+                $sets = ExerciseSet::query()
+                    ->select('exercise_sets.*', 'workouts.completed_at as workout_completed_at')
+                    ->join('workout_exercises', 'workout_exercises.id', '=', 'exercise_sets.workout_exercise_id')
+                    ->join('workouts', 'workouts.id', '=', 'workout_exercises.workout_id')
+                    ->where('workouts.user_id', $userId)
+                    ->where('workout_exercises.exercise_id', $exercise->id)
+                    ->whereNotNull('workouts.completed_at')
+                    ->orderBy('workouts.completed_at')
+                    ->orderBy('workout_exercises.order')
+                    ->orderBy('exercise_sets.set_number')
+                    ->withCasts(['workout_completed_at' => 'datetime'])
+                    ->get();
+
+                $best = self::bestSets($exercise, $sets);
+
+                self::query()
+                    ->where('user_id', $userId)
+                    ->where('exercise_id', $exercise->id)
+                    ->whereNotIn('record_type', array_keys($best))
+                    ->delete();
+
+                foreach ($best as $recordType => ['set' => $set, 'value' => $value]) {
+                    self::query()->updateOrCreate(
+                        ['user_id' => $userId, 'exercise_id' => $exercise->id, 'record_type' => $recordType],
+                        ['exercise_set_id' => $set->id, 'value' => $value, 'achieved_at' => $set->workout_completed_at],
+                    );
+                }
+            }
+        });
+    }
+}

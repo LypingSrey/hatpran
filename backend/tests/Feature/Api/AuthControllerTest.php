@@ -1,0 +1,129 @@
+<?php
+
+namespace Tests\Feature\Api;
+
+use App\Models\User;
+use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Laravel\Sanctum\PersonalAccessToken;
+use Tests\TestCase;
+
+class AuthControllerTest extends TestCase
+{
+    use LazilyRefreshDatabase;
+
+    public function test_register_creates_user_and_returns_201_with_token(): void
+    {
+        $response = $this->postJson('/api/register', [
+            'name' => 'Jane Lifter',
+            'email' => 'jane@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('user.email', 'jane@example.com')
+            ->assertJsonMissingPath('user.password')
+            ->assertJsonStructure(['user' => ['id', 'name', 'email'], 'token']);
+
+        $this->assertDatabaseHas('users', ['email' => 'jane@example.com']);
+    }
+
+    public function test_register_rejects_empty_payload_with_422(): void
+    {
+        $this->postJson('/api/register', [])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['name', 'email', 'password']);
+    }
+
+    public function test_register_rejects_duplicate_email_with_422(): void
+    {
+        User::factory()->create(['email' => 'taken@example.com']);
+
+        $this->postJson('/api/register', [
+            'name' => 'Someone',
+            'email' => 'taken@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['email' => 'The email has already been taken.']);
+    }
+
+    public function test_register_rejects_unconfirmed_password_with_422(): void
+    {
+        $this->postJson('/api/register', [
+            'name' => 'Someone',
+            'email' => 'someone@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'different123',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['password']);
+    }
+
+    public function test_login_returns_token_for_valid_credentials(): void
+    {
+        $user = User::factory()->create();
+
+        $this->postJson('/api/login', ['email' => $user->email, 'password' => 'password'])
+            ->assertOk()
+            ->assertJsonPath('user.id', $user->id)
+            ->assertJsonStructure(['token']);
+    }
+
+    public function test_login_rejects_wrong_password_with_422(): void
+    {
+        $user = User::factory()->create();
+
+        $this->postJson('/api/login', ['email' => $user->email, 'password' => 'wrong-password'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email' => 'The provided credentials are incorrect.']);
+    }
+
+    public function test_login_rejects_unknown_email_with_422(): void
+    {
+        $this->postJson('/api/login', ['email' => 'nobody@example.com', 'password' => 'password'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+    }
+
+    public function test_user_returns_the_authenticated_user(): void
+    {
+        $user = User::factory()->create();
+        $token = $user->createToken('test')->plainTextToken;
+
+        $this->withToken($token)->getJson('/api/user')
+            ->assertOk()
+            ->assertJsonPath('id', $user->id)
+            ->assertJsonMissingPath('password');
+    }
+
+    public function test_returns_401_when_no_token_is_provided(): void
+    {
+        $this->getJson('/api/user')->assertUnauthorized();
+    }
+
+    public function test_returns_401_json_when_client_does_not_ask_for_json(): void
+    {
+        $this->get('/api/user')
+            ->assertUnauthorized()
+            ->assertJsonPath('message', 'Unauthenticated.');
+    }
+
+    public function test_returns_401_for_an_invalid_token(): void
+    {
+        $this->withToken('1|not-a-real-token')->getJson('/api/user')->assertUnauthorized();
+    }
+
+    public function test_logout_revokes_only_the_current_token(): void
+    {
+        $user = User::factory()->create();
+        $current = $user->createToken('phone')->plainTextToken;
+        $user->createToken('laptop');
+
+        $this->withToken($current)->postJson('/api/logout')->assertOk();
+
+        $this->assertSame(['laptop'], PersonalAccessToken::pluck('name')->all());
+
+        $this->app['auth']->forgetGuards();
+        $this->withToken($current)->getJson('/api/user')->assertUnauthorized();
+    }
+}
