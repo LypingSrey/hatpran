@@ -1,0 +1,17 @@
+services:
+  pgsql-test:
+    image: postgres:17-alpine
+    container_name: hatpran-pgsql-test
+    environment:
+      POSTGRES_DB: hatpran_testing
+      POSTGRES_USER: hatpran
+      POSTGRES_PASSWORD: secret
+    ports:
+      - "54329:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hatpran -d hatpran_testing"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
