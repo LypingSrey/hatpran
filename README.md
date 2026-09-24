@@ -4,7 +4,7 @@ Workout tracker: log sets, save routines as templates, and get automatic persona
 
 | Folder | What | Stack |
 | --- | --- | --- |
-| [`backend/`](backend) | REST API | Laravel 13, Sanctum, PostgreSQL (SQLite for local dev) |
+| [`backend/`](backend) | REST API | Laravel 13, Sanctum, PostgreSQL |
 | [`frontend/`](frontend) | Mobile + web app | React Native, Expo SDK 57, Expo Router |
 
 ## Quick start
@@ -15,9 +15,14 @@ Workout tracker: log sets, save routines as templates, and get automatic persona
 cd backend
 composer install
 cp .env.example .env && php artisan key:generate
-touch database/database.sqlite && php artisan migrate --seed
+# set DB_PASSWORD in .env to any value, then start PostgreSQL (data persists in a Docker volume):
+docker compose up -d --wait
+php artisan migrate --seed
 php artisan serve --host=0.0.0.0 --port=8000
 ```
+
+The development database is PostgreSQL 17 on `127.0.0.1:54320` (database/user `hatpran`, password from `.env`),
+so any SQL client can connect with `postgresql://hatpran:<DB_PASSWORD>@127.0.0.1:54320/hatpran`.
 
 **App**
 
@@ -31,7 +36,7 @@ On a phone, the app automatically talks to the API on the Mac serving the Expo b
 
 ## Tests
 
-The API test suite runs against PostgreSQL in Docker:
+The API test suite runs against a separate, throwaway PostgreSQL container (port 54329) so it never touches your dev data:
 
 ```bash
 cd backend
