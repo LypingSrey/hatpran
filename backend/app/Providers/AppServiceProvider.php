@@ -24,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
             'equipment',
             'exercise',
             'exerciseSet',
+            'manual_record',
             'muscleGroup',
             'personalRecord',
             'workout',

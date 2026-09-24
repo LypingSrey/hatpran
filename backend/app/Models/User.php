@@ -45,4 +45,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(PersonalRecord::class);
     }
+
+    public function manualRecords(): HasMany
+    {
+        return $this->hasMany(ManualRecord::class);
+    }
 }

@@ -4,8 +4,10 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\EquipmentController;
 use App\Http\Controllers\Api\ExerciseController;
 use App\Http\Controllers\Api\ExerciseSetController;
+use App\Http\Controllers\Api\ManualRecordController;
 use App\Http\Controllers\Api\MuscleGroupController;
 use App\Http\Controllers\Api\PersonalRecordController;
+use App\Http\Controllers\Api\ProfileController;
 use App\Http\Controllers\Api\WorkoutController;
 use App\Http\Controllers\Api\WorkoutTemplateController;
 use Illuminate\Support\Facades\Route;
@@ -18,6 +20,12 @@ Route::middleware('auth:sanctum')->group(function () {
     // Auth
     Route::post('logout', [AuthController::class, 'logout']);
     Route::get('user', [AuthController::class, 'user']);
+
+    // Profile (password-checking routes are throttled against guessing)
+    Route::put('user', [ProfileController::class, 'update'])->middleware('throttle:6,1');
+    Route::put('user/password', [ProfileController::class, 'updatePassword'])->middleware('throttle:6,1');
+    Route::get('user/stats', [ProfileController::class, 'stats']);
+
     // Muscle Groups (read-only)
     Route::get('muscle-groups', [MuscleGroupController::class, 'index']);
     Route::get('muscle-groups/{muscleGroup}', [MuscleGroupController::class, 'show']);
@@ -49,4 +57,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('personal-records', [PersonalRecordController::class, 'index']);
     Route::get('personal-records/{personalRecord}', [PersonalRecordController::class, 'show']);
     Route::get('exercises/{exercise}/personal-records', [PersonalRecordController::class, 'forExercise']);
+
+    // Records entered by hand; they count toward personal records
+    Route::apiResource('manual-records', ManualRecordController::class);
 });

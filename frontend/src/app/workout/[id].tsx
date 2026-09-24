@@ -1,33 +1,16 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { SetRow } from '@/components/SetRow';
 import { Button, Card, ErrorBanner, Loading, text } from '@/components/ui';
 import { api, type SetInput } from '@/lib/api';
+import { confirm, showError } from '@/lib/dialogs';
 import { formatDate, formatDuration, formatNumber, formatRecordValue, recordLabels, setFieldsFor } from '@/lib/format';
 import { colors, radius, spacing } from '@/lib/theme';
 import type { ExerciseSet, PersonalRecord, Workout, WorkoutExercise } from '@/lib/types';
-import { errorMessage, useApi } from '@/lib/useApi';
-
-/** Confirm on native; window.confirm on web where Alert buttons aren't supported. */
-function confirm(title: string, message: string, confirmLabel: string, onConfirm: () => void) {
-  if (Platform.OS === 'web') {
-    if (globalThis.confirm?.(`${title}\n\n${message}`)) onConfirm();
-    return;
-  }
-  Alert.alert(title, message, [
-    { text: 'Cancel', style: 'cancel' },
-    { text: confirmLabel, style: 'destructive', onPress: onConfirm },
-  ]);
-}
-
-function showError(e: unknown) {
-  const message = errorMessage(e);
-  if (Platform.OS === 'web') globalThis.alert?.(message);
-  else Alert.alert('Could not save', message);
-}
+import { useApi } from '@/lib/useApi';
 
 export default function WorkoutScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -140,7 +123,21 @@ export default function WorkoutScreen() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: workout.name }} />
+      <Stack.Screen
+        options={{
+          title: workout.name,
+          headerRight: () => (
+            <Pressable
+              onPress={() => router.push(`/workout/edit/${workout.id}`)}
+              accessibilityRole="button"
+              accessibilityLabel="Edit workout details"
+              hitSlop={8}
+            >
+              <Text style={styles.headerAction}>Edit</Text>
+            </Pressable>
+          ),
+        }}
+      />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         {newRecords ? <RecordsCelebration records={newRecords} /> : null}
 
@@ -156,6 +153,11 @@ export default function WorkoutScreen() {
           Started {formatDate(workout.started_at)}
           {workout.template ? ` · from “${workout.template.name}”` : ''}
         </Text>
+        {workout.notes ? (
+          <Card>
+            <Text style={text.body}>{workout.notes}</Text>
+          </Card>
+        ) : null}
 
         {(workout.exercises ?? []).length === 0 ? (
           <Card>
@@ -258,4 +260,5 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   recordLine: { flexDirection: 'row', gap: spacing.sm },
+  headerAction: { color: colors.primary, fontSize: 17, fontWeight: '600' },
 });

@@ -18,6 +18,7 @@ class PersonalRecord extends Model
         'user_id',
         'exercise_id',
         'exercise_set_id',
+        'manual_record_id',
         'record_type',
         'value',
         'achieved_at',
@@ -44,6 +45,11 @@ class PersonalRecord extends Model
     public function exerciseSet(): BelongsTo
     {
         return $this->belongsTo(ExerciseSet::class);
+    }
+
+    public function manualRecord(): BelongsTo
+    {
+        return $this->belongsTo(ManualRecord::class);
     }
 
     /**
@@ -92,7 +98,8 @@ class PersonalRecord extends Model
     }
 
     /**
-     * Rebuild a user's records for the given exercises from their completed workout history.
+     * Rebuild a user's records for the given exercises from their completed workout history
+     * and the bests they entered by hand. The higher value wins; on a tie the earlier one does.
      *
      * @param  iterable<int>  $exerciseIds
      */
@@ -115,7 +122,38 @@ class PersonalRecord extends Model
                     ->withCasts(['workout_completed_at' => 'datetime'])
                     ->get();
 
-                $best = self::bestSets($exercise, $sets);
+                $best = [];
+
+                foreach (self::bestSets($exercise, $sets) as $recordType => ['set' => $set, 'value' => $value]) {
+                    $best[$recordType] = [
+                        'exercise_set_id' => $set->id,
+                        'manual_record_id' => null,
+                        'value' => $value,
+                        'achieved_at' => $set->workout_completed_at,
+                    ];
+                }
+
+                $manualRecords = ManualRecord::query()
+                    ->where('user_id', $userId)
+                    ->where('exercise_id', $exercise->id)
+                    ->whereIn('record_type', $exercise->personalRecordTypes())
+                    ->get();
+
+                foreach ($manualRecords as $manualRecord) {
+                    $current = $best[$manualRecord->record_type] ?? null;
+                    $value = (float) $manualRecord->value;
+
+                    if ($current === null
+                        || $value > $current['value']
+                        || ($value === $current['value'] && $manualRecord->achieved_at->lt($current['achieved_at']))) {
+                        $best[$manualRecord->record_type] = [
+                            'exercise_set_id' => null,
+                            'manual_record_id' => $manualRecord->id,
+                            'value' => $value,
+                            'achieved_at' => $manualRecord->achieved_at,
+                        ];
+                    }
+                }
 
                 self::query()
                     ->where('user_id', $userId)
@@ -123,10 +161,10 @@ class PersonalRecord extends Model
                     ->whereNotIn('record_type', array_keys($best))
                     ->delete();
 
-                foreach ($best as $recordType => ['set' => $set, 'value' => $value]) {
+                foreach ($best as $recordType => $attributes) {
                     self::query()->updateOrCreate(
                         ['user_id' => $userId, 'exercise_id' => $exercise->id, 'record_type' => $recordType],
-                        ['exercise_set_id' => $set->id, 'value' => $value, 'achieved_at' => $set->workout_completed_at],
+                        $attributes,
                     );
                 }
             }

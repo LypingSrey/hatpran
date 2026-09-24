@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\Exercise;
 use App\Models\ExerciseSet;
+use App\Models\PersonalRecord;
 use App\Models\User;
 use App\Models\Workout;
 use App\Models\WorkoutExercise;
@@ -337,6 +338,64 @@ class WorkoutControllerTest extends TestCase
             ->assertJsonPath('data.name', 'Renamed');
 
         $this->assertTrue($workout->fresh()->completed_at->equalTo($completedAt));
+    }
+
+    public function test_update_moving_a_finished_workout_keeps_its_duration_and_moves_its_records(): void
+    {
+        $user = User::factory()->create();
+        $exercise = Exercise::factory()->create(['exercise_type' => 'weight_reps']);
+        $workout = Workout::factory()->for($user)->create([
+            'started_at' => '2026-09-20 10:00:00',
+            'completed_at' => '2026-09-20 11:15:00',
+            'duration_seconds' => 4500,
+        ]);
+        ExerciseSet::factory()->for(WorkoutExercise::factory()->for($workout)->for($exercise))->create(['weight_kg' => 100, 'reps' => 5]);
+        PersonalRecord::recalculate($user->id, [$exercise->id]);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson("/api/workouts/{$workout->id}", ['started_at' => '2026-09-18T07:30:00Z'])
+            ->assertOk()
+            ->assertJsonPath('data.duration_seconds', 4500);
+
+        $workout->refresh();
+        $this->assertSame('2026-09-18 08:45:00', $workout->completed_at->toDateTimeString());
+        $this->assertSame(
+            '2026-09-18 08:45:00',
+            PersonalRecord::where('record_type', 'max_weight')->sole()->achieved_at->toDateTimeString(),
+        );
+    }
+
+    public function test_update_with_start_and_finish_sets_both_and_the_duration(): void
+    {
+        $user = User::factory()->create();
+        $workout = Workout::factory()->for($user)->create();
+
+        Sanctum::actingAs($user);
+
+        $this->putJson("/api/workouts/{$workout->id}", [
+            'started_at' => '2026-09-18T07:00:00Z',
+            'completed_at' => '2026-09-18T07:40:00Z',
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.duration_seconds', 2400);
+    }
+
+    public function test_update_rejects_finish_before_the_new_start_with_422(): void
+    {
+        $user = User::factory()->create();
+        $workout = Workout::factory()->for($user)->create(['started_at' => '2026-09-18 07:00:00']);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson("/api/workouts/{$workout->id}", [
+            'started_at' => '2026-09-18T09:00:00Z',
+            'completed_at' => '2026-09-18T08:00:00Z',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['completed_at' => 'The finish time must be after the start time.']);
+
+        $this->assertSame('2026-09-18 07:00:00', $workout->fresh()->started_at->toDateTimeString());
     }
 
     public function test_update_forbids_another_users_workout_with_403(): void
