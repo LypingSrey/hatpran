@@ -1,14 +1,19 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { api, setAuthToken, setUnauthorizedHandler } from './api';
+import { restoreSession } from './session';
 import { deleteItem, getItem, setItem } from './storage';
 import type { AuthResponse, User } from './types';
+import { errorMessage } from './useApi';
 
 const TOKEN_KEY = 'hatpran.token';
 
 interface AuthContextValue {
   user: User | null;
   isLoading: boolean;
+  /** Set when a saved sign-in couldn't be checked (e.g. no signal). The sign-in is kept for a retry. */
+  restoreError: string | null;
+  retryRestore: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string, passwordConfirmation: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -21,32 +26,36 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
 
   const clearSession = useCallback(async () => {
     setAuthToken(null);
     setUser(null);
+    setRestoreError(null);
     await deleteItem(TOKEN_KEY);
   }, []);
+
+  const restore = useCallback(async (token: string | null) => {
+    setAuthToken(token);
+    const result = await restoreSession(token, api.me);
+    if (result.status === 'signed-in') setUser(result.user);
+    else if (result.status === 'unreachable') setRestoreError(errorMessage(result.error));
+    else if (token) await clearSession();
+    setIsLoading(false);
+  }, [clearSession]);
+
+  const retryRestore = useCallback(async () => {
+    setIsLoading(true);
+    setRestoreError(null);
+    await restore(await getItem(TOKEN_KEY));
+  }, [restore]);
 
   // Restore a saved session on launch.
   useEffect(() => {
     setUnauthorizedHandler(() => void clearSession());
-
-    (async () => {
-      const token = await getItem(TOKEN_KEY);
-      if (token) {
-        setAuthToken(token);
-        try {
-          setUser(await api.me());
-        } catch {
-          await clearSession();
-        }
-      }
-      setIsLoading(false);
-    })();
-
+    void getItem(TOKEN_KEY).then(restore);
     return () => setUnauthorizedHandler(null);
-  }, [clearSession]);
+  }, [clearSession, restore]);
 
   const startSession = useCallback(async ({ user, token }: AuthResponse) => {
     setAuthToken(token);
@@ -58,6 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       isLoading,
+      restoreError,
+      retryRestore,
       signIn: async (email, password) => startSession(await api.login({ email, password })),
       signUp: async (name, email, password, password_confirmation) =>
         startSession(await api.register({ name, email, password, password_confirmation })),
@@ -71,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       updateUser: setUser,
     }),
-    [user, isLoading, startSession, clearSession],
+    [user, isLoading, restoreError, retryRestore, startSession, clearSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
