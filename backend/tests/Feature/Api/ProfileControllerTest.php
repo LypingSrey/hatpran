@@ -8,7 +8,9 @@ use App\Models\User;
 use App\Models\Workout;
 use App\Models\WorkoutExercise;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -137,6 +139,84 @@ class ProfileControllerTest extends TestCase
             'password' => 'new-password',
             'password_confirmation' => 'different',
         ])->assertUnprocessable()->assertJsonValidationErrors(['password']);
+    }
+
+    public function test_update_avatar_returns_401_without_token(): void
+    {
+        $this->postJson('/api/user/avatar')->assertUnauthorized();
+    }
+
+    public function test_update_avatar_stores_the_picture_and_returns_its_url(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+
+        Sanctum::actingAs($user);
+
+        $response = $this->postJson('/api/user/avatar', ['avatar' => UploadedFile::fake()->image('me.jpg', 400, 400)])
+            ->assertOk()
+            ->assertJsonMissingPath('avatar_path');
+
+        $path = $user->fresh()->avatar_path;
+        $this->assertStringStartsWith('avatars/', $path);
+        Storage::disk('public')->assertExists($path);
+        $this->assertSame(url('storage/'.$path), $response->json('avatar_url'));
+    }
+
+    public function test_update_avatar_replaces_and_deletes_the_previous_picture(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/user/avatar', ['avatar' => UploadedFile::fake()->image('first.png')])->assertOk();
+        $first = $user->fresh()->avatar_path;
+
+        $this->postJson('/api/user/avatar', ['avatar' => UploadedFile::fake()->image('second.webp')])->assertOk();
+
+        Storage::disk('public')->assertMissing($first);
+        Storage::disk('public')->assertExists($user->fresh()->avatar_path);
+    }
+
+    public function test_update_avatar_rejects_a_non_image_with_422(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->create();
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/user/avatar', ['avatar' => UploadedFile::fake()->create('cv.pdf', 100, 'application/pdf')])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['avatar' => 'The avatar field must be a file of type: jpg, jpeg, png, webp.']);
+
+        $this->assertNull($user->fresh()->avatar_path);
+    }
+
+    public function test_update_avatar_rejects_files_over_5_mb_with_422(): void
+    {
+        Storage::fake('public');
+
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->postJson('/api/user/avatar', ['avatar' => UploadedFile::fake()->image('huge.jpg')->size(5121)])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['avatar' => 'The avatar field must not be greater than 5120 kilobytes.']);
+    }
+
+    public function test_destroy_avatar_deletes_the_file_and_clears_the_url(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('avatars/old.jpg', 'image');
+        $user = User::factory()->create(['avatar_path' => 'avatars/old.jpg']);
+
+        Sanctum::actingAs($user);
+
+        $this->deleteJson('/api/user/avatar')
+            ->assertOk()
+            ->assertJsonPath('avatar_url', null);
+
+        Storage::disk('public')->assertMissing('avatars/old.jpg');
+        $this->assertNull($user->fresh()->avatar_path);
     }
 
     public function test_stats_count_only_finished_workouts_and_ticked_sets_of_the_user(): void

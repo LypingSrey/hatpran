@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ExerciseSet;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Laravel\Sanctum\PersonalAccessToken;
 
@@ -27,6 +28,38 @@ class ProfileController extends Controller
         ]);
 
         $user->update(collect($validated)->only(['name', 'email'])->all());
+
+        return response()->json($user);
+    }
+
+    public function updateAvatar(Request $request): JsonResponse
+    {
+        $request->validate([
+            // JPEG, PNG or WebP only, so every client (including browsers) can display it.
+            'avatar' => 'required|file|mimes:jpg,jpeg,png,webp|max:5120',
+        ]);
+
+        $user = $request->user();
+        $previous = $user->avatar_path;
+
+        // Stored under a random name, so each upload gets a new URL and clients never show a cached old picture.
+        $user->forceFill(['avatar_path' => $request->file('avatar')->store('avatars', 'public')])->save();
+
+        if ($previous) {
+            Storage::disk('public')->delete($previous);
+        }
+
+        return response()->json($user);
+    }
+
+    public function destroyAvatar(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->avatar_path) {
+            Storage::disk('public')->delete($user->avatar_path);
+            $user->forceFill(['avatar_path' => null])->save();
+        }
 
         return response()->json($user);
     }

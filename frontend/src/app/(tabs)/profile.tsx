@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { Avatar } from '@/components/Avatar';
 import { RecordRow } from '@/components/RecordRow';
 import { Button, Card, ErrorBanner, text } from '@/components/ui';
 import { WorkoutCard } from '@/components/WorkoutCard';
@@ -39,9 +40,14 @@ export default function ProfileScreen() {
       }
     >
       <Card style={styles.card}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{user?.name.slice(0, 1).toUpperCase()}</Text>
-        </View>
+        <Pressable
+          onPress={() => router.push('/profile/edit')}
+          accessibilityRole="button"
+          accessibilityLabel="Change profile picture"
+          style={{ marginBottom: spacing.sm }}
+        >
+          <Avatar user={user} />
+        </Pressable>
         <Text style={text.title}>{user?.name}</Text>
         <Text style={text.muted}>{user?.email}</Text>
         <Text style={text.muted}>Member since {memberSince}</Text>
@@ -139,16 +145,6 @@ function SectionHeader({ title, onSeeAll }: { title: string; onSeeAll?: () => vo
 const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl * 2 },
   card: { alignItems: 'center', gap: spacing.xs },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  avatarText: { color: colors.onPrimary, fontSize: 30, fontWeight: '700' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   tile: { flexGrow: 1, flexBasis: '45%', alignItems: 'center', gap: 2, paddingVertical: spacing.md },
   tileValue: { fontSize: 22, fontWeight: '700', color: colors.text },
