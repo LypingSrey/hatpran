@@ -1,12 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, type Href } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { formatDate, formatRecordValue, recordLabels } from '@/lib/format';
-import { colors, spacing } from '@/lib/theme';
+import { formatDate, formatRecordValue, formatTime, recordLabels } from '@/lib/format';
+import { colors, radius, spacing } from '@/lib/theme';
 import type { PersonalRecord } from '@/lib/types';
 
-import { text } from './ui';
+import { Button, text } from './ui';
 
 /** Where to go to change a record: the entry the user typed in, or the workout whose set holds it. */
 function editRoute(record: PersonalRecord): Href | null {
@@ -18,43 +19,71 @@ function editRoute(record: PersonalRecord): Href | null {
 }
 
 /**
- * One record line with where it came from. Tapping opens the manual entry to edit,
- * or the workout it was set in, since those sets are what the record is computed from.
+ * One record line: what it is and its value. Tapping shows where and when it was set, with a button
+ * to edit the manual entry or open the workout, since those sets are what the record is computed from.
  */
 export function RecordRow({ record, showExercise = false }: { record: PersonalRecord; showExercise?: boolean }) {
+  const [expanded, setExpanded] = useState(false);
   const route = editRoute(record);
-  const origin =
-    record.source === 'manual' ? 'Entered by you' : record.workout ? `In “${record.workout.name}”` : 'From a workout';
+  const isManual = record.source === 'manual';
   const label = showExercise
     ? `${record.exercise?.name ?? 'Exercise'} · ${recordLabels[record.record_type]}`
     : recordLabels[record.record_type];
+  const origin = isManual ? 'Entered by you' : (record.workout?.name ?? 'From a workout');
+  // Manual entries are stored at midday as a placeholder, so only their date means anything.
+  const when = isManual
+    ? formatDate(record.achieved_at)
+    : `${formatDate(record.achieved_at)} · ${formatTime(record.achieved_at)}`;
 
   return (
-    <Pressable
-      onPress={route ? () => router.push(route) : undefined}
-      disabled={!route}
-      accessibilityRole={route ? 'button' : undefined}
-      accessibilityHint={record.source === 'manual' ? 'Edit this record' : 'Open the workout this record is from'}
-      style={({ pressed }) => [styles.row, pressed && { opacity: 0.6 }]}
-    >
-      <View style={{ flex: 1 }}>
-        <Text style={text.body} numberOfLines={1}>
+    <View>
+      <Pressable
+        onPress={() => setExpanded((open) => !open)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        accessibilityHint={expanded ? 'Hide where this record is from' : 'Show where this record is from'}
+        style={({ pressed }) => [styles.row, pressed && { opacity: 0.6 }]}
+      >
+        <Text style={[text.body, { flex: 1 }]} numberOfLines={1}>
           {label}
         </Text>
-        <View style={styles.meta}>
-          {record.source === 'manual' ? <Ionicons name="create-outline" size={12} color={colors.textMuted} /> : null}
-          <Text style={text.muted} numberOfLines={1}>
-            {origin} · {formatDate(record.achieved_at)}
-          </Text>
+        <Text style={[text.body, { fontWeight: '700' }]}>{formatRecordValue(record.record_type, record.value)}</Text>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textMuted} />
+      </Pressable>
+
+      {expanded ? (
+        <View style={styles.details}>
+          <View style={styles.detailLine}>
+            <Ionicons name={isManual ? 'create-outline' : 'barbell-outline'} size={14} color={colors.textMuted} />
+            <Text style={[text.body, { flex: 1 }]}>{origin}</Text>
+          </View>
+          <View style={styles.detailLine}>
+            <Ionicons name="calendar-outline" size={14} color={colors.textMuted} />
+            <Text style={[text.muted, { flex: 1 }]}>{when}</Text>
+          </View>
+          {route ? (
+            <Button
+              title={isManual ? 'Edit record' : 'Open workout'}
+              variant="secondary"
+              onPress={() => router.push(route)}
+              style={styles.action}
+            />
+          ) : null}
         </View>
-      </View>
-      <Text style={[text.body, { fontWeight: '700' }]}>{formatRecordValue(record.record_type, record.value)}</Text>
-      {route ? <Ionicons name="chevron-forward" size={16} color={colors.textMuted} /> : null}
-    </Pressable>
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
-  meta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  details: {
+    gap: spacing.xs,
+    padding: spacing.md,
+    marginBottom: spacing.xs,
+    borderRadius: radius.sm,
+    backgroundColor: colors.background,
+  },
+  detailLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  action: { marginTop: spacing.xs },
 });

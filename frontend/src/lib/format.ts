@@ -23,6 +23,12 @@ export function formatDate(iso: string | null | undefined): string {
   });
 }
 
+/** Local time of day, e.g. 18:30 or 6:30 PM depending on the device's settings. */
+export function formatTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
 const pad = (n: number) => String(n).padStart(2, '0');
 
 /** Local calendar date as YYYY-MM-DD, for date inputs. */
