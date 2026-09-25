@@ -12,6 +12,8 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string, passwordConfirmation: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Replace the signed-in user after a profile edit. */
+  updateUser: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -67,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         await clearSession();
       },
+      updateUser: setUser,
     }),
     [user, isLoading, startSession, clearSession],
   );

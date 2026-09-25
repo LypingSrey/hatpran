@@ -6,11 +6,14 @@ import type {
   Exercise,
   ExerciseSet,
   ExerciseType,
+  ManualRecord,
   NamedRef,
   Paginated,
   PersonalRecord,
+  RecordType,
   SetType,
   User,
+  UserStats,
   Workout,
   WorkoutTemplate,
 } from './types';
@@ -66,16 +69,18 @@ export function setUnauthorizedHandler(handler: (() => void) | null) {
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
+  const isForm = body instanceof FormData;
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       method,
       headers: {
         Accept: 'application/json',
-        'Content-Type': 'application/json',
+        // FormData sets its own multipart Content-Type, including the boundary.
+        ...(isForm ? {} : { 'Content-Type': 'application/json' }),
         ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
     });
   } catch {
     throw new ApiError(`Can't reach the server at ${API_URL}. Is the Laravel API running?`, 0);
@@ -123,12 +128,24 @@ export interface CompleteWorkoutResponse extends Data<Workout> {
   personal_records: PersonalRecord[];
 }
 
+/** A manual record plus the record it now competes for (null when no record exists). */
+export interface ManualRecordResponse extends Data<ManualRecord> {
+  personal_record: PersonalRecord | null;
+}
+
 export const api = {
   register: (body: { name: string; email: string; password: string; password_confirmation: string }) =>
     request<AuthResponse>('POST', '/register', body),
   login: (body: { email: string; password: string }) => request<AuthResponse>('POST', '/login', body),
   logout: () => request<{ message: string }>('POST', '/logout'),
   me: () => request<User>('GET', '/user'),
+  updateProfile: (body: { name?: string; email?: string; current_password?: string }) =>
+    request<User>('PUT', '/user', body),
+  updatePassword: (body: { current_password: string; password: string; password_confirmation: string }) =>
+    request<{ message: string }>('PUT', '/user/password', body),
+  stats: () => request<Data<UserStats>>('GET', '/user/stats'),
+  uploadAvatar: (form: FormData) => request<User>('POST', '/user/avatar', form),
+  deleteAvatar: () => request<User>('DELETE', '/user/avatar'),
 
   muscleGroups: () => request<Data<NamedRef[]>>('GET', '/muscle-groups'),
   equipment: () => request<Data<NamedRef[]>>('GET', '/equipment'),
@@ -146,7 +163,7 @@ export const api = {
   deleteExercise: (id: number) => request<void>('DELETE', `/exercises/${id}`),
   exerciseRecords: (id: number) => request<Data<PersonalRecord[]>>('GET', `/exercises/${id}/personal-records`),
 
-  workouts: (params: { completed?: boolean; in_progress?: boolean; page?: number } = {}) =>
+  workouts: (params: { completed?: boolean; in_progress?: boolean; page?: number; per_page?: number } = {}) =>
     request<Paginated<Workout>>('GET', '/workouts' + query(params)),
   workout: (id: number) => request<Data<Workout>>('GET', `/workouts/${id}`),
   createWorkout: (body: {
@@ -154,7 +171,10 @@ export const api = {
     notes?: string | null;
     exercises?: { exercise_id: number; sets?: SetInput[] }[];
   }) => request<Data<Workout>>('POST', '/workouts', body),
-  updateWorkout: (id: number, body: { name?: string; notes?: string | null; completed_at?: string | null }) =>
+  updateWorkout: (
+    id: number,
+    body: { name?: string; notes?: string | null; started_at?: string; completed_at?: string | null },
+  ) =>
     request<CompleteWorkoutResponse>('PUT', `/workouts/${id}`, body),
   completeWorkout: (id: number) => request<CompleteWorkoutResponse>('POST', `/workouts/${id}/complete`),
   deleteWorkout: (id: number) => request<void>('DELETE', `/workouts/${id}`),
@@ -174,5 +194,15 @@ export const api = {
   deleteTemplate: (id: number) => request<void>('DELETE', `/workout-templates/${id}`),
   startTemplate: (id: number) => request<Data<Workout>>('POST', `/workout-templates/${id}/start`),
 
-  personalRecords: () => request<Paginated<PersonalRecord>>('GET', '/personal-records' + query({ per_page: 100 })),
+  personalRecords: (params: { per_page?: number } = {}) =>
+    request<Paginated<PersonalRecord>>('GET', '/personal-records' + query({ per_page: 100, ...params })),
+
+  manualRecords: (params: { exercise_id?: number } = {}) =>
+    request<Paginated<ManualRecord>>('GET', '/manual-records' + query({ per_page: 100, ...params })),
+  manualRecord: (id: number) => request<ManualRecordResponse>('GET', `/manual-records/${id}`),
+  createManualRecord: (body: { exercise_id: number; record_type: RecordType; value: number; achieved_at: string }) =>
+    request<ManualRecordResponse>('POST', '/manual-records', body),
+  updateManualRecord: (id: number, body: { value?: number; achieved_at?: string }) =>
+    request<ManualRecordResponse>('PUT', `/manual-records/${id}`, body),
+  deleteManualRecord: (id: number) => request<void>('DELETE', `/manual-records/${id}`),
 };

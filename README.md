@@ -18,6 +18,7 @@ cp .env.example .env && php artisan key:generate
 # set DB_PASSWORD in .env to any value, then start PostgreSQL (data persists in a Docker volume):
 docker compose up -d --wait
 php artisan migrate --seed
+php artisan storage:link      # serves uploaded profile pictures
 php artisan serve --host=0.0.0.0 --port=8000
 ```
 

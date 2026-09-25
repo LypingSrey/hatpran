@@ -15,6 +15,7 @@ export interface User {
   id: number;
   name: string;
   email: string;
+  avatar_url: string | null;
   created_at: string;
 }
 
@@ -97,7 +98,29 @@ export interface PersonalRecord {
   value: number;
   achieved_at: string;
   exercise_set_id: number | null;
+  manual_record_id: number | null;
+  /** 'manual' when the best is one the user entered by hand, otherwise a logged set. */
+  source: 'workout' | 'manual';
   exercise?: Exercise;
+  /** The workout the record was set in, when the API includes it. */
+  workout?: { id: number; name: string } | null;
+}
+
+/** A best the user entered by hand, e.g. a lift from before they used the app. */
+export interface ManualRecord {
+  id: number;
+  record_type: RecordType;
+  value: number;
+  achieved_at: string;
+  exercise?: Exercise;
+}
+
+export interface UserStats {
+  workouts_count: number;
+  total_duration_seconds: number;
+  total_sets: number;
+  total_volume: number;
+  records_count: number;
 }
 
 export interface Paginated<T> {

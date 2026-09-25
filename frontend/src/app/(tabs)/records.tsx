@@ -2,9 +2,9 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 
-import { Card, EmptyState, ErrorBanner, Loading, text } from '@/components/ui';
+import { RecordRow } from '@/components/RecordRow';
+import { Button, Card, EmptyState, ErrorBanner, Loading, text } from '@/components/ui';
 import { api } from '@/lib/api';
-import { formatDate, formatRecordValue, recordLabels } from '@/lib/format';
 import { colors, spacing } from '@/lib/theme';
 import type { PersonalRecord } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
@@ -45,31 +45,36 @@ export default function RecordsScreen() {
       keyExtractor={(g) => String(g.exerciseId)}
       contentContainerStyle={styles.list}
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} />}
-      ListHeaderComponent={error ? <ErrorBanner message={error} onRetry={refresh} /> : null}
+      ListHeaderComponent={
+        <View style={{ gap: spacing.md }}>
+          {error ? <ErrorBanner message={error} onRetry={refresh} /> : null}
+          <Button title="+ Add a past record" variant="secondary" onPress={() => router.push('/record/manual')} />
+        </View>
+      }
       ListEmptyComponent={
         error ? null : (
           <EmptyState
             title="No records yet"
-            message="Finish a workout with completed sets and your best lifts will appear here."
+            message="Finish a workout with completed sets, or add a best you set before, and it will appear here."
           />
         )
       }
       renderItem={({ item }) => (
-        <Pressable onPress={() => router.push(`/exercise/${item.exerciseId}`)} accessibilityRole="button">
-          <Card style={{ gap: spacing.sm }}>
-            <View style={styles.header}>
-              <Ionicons name="trophy" size={20} color={colors.gold} />
-              <Text style={[text.heading, { flex: 1 }]}>{item.name}</Text>
-              <Text style={text.muted}>{formatDate(item.latest)}</Text>
-            </View>
-            {item.records.map((r) => (
-              <View key={r.id} style={styles.line}>
-                <Text style={[text.body, { flex: 1, color: colors.textMuted }]}>{recordLabels[r.record_type]}</Text>
-                <Text style={[text.body, { fontWeight: '700' }]}>{formatRecordValue(r.record_type, r.value)}</Text>
-              </View>
-            ))}
-          </Card>
-        </Pressable>
+        <Card style={{ gap: spacing.sm }}>
+          <Pressable
+            onPress={() => router.push(`/exercise/${item.exerciseId}`)}
+            accessibilityRole="button"
+            accessibilityHint="Open the exercise"
+            style={styles.header}
+          >
+            <Ionicons name="trophy" size={20} color={colors.gold} />
+            <Text style={[text.heading, { flex: 1 }]}>{item.name}</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </Pressable>
+          {item.records.map((r) => (
+            <RecordRow key={r.id} record={r} />
+          ))}
+        </Card>
       )}
     />
   );
@@ -78,5 +83,4 @@ export default function RecordsScreen() {
 const styles = StyleSheet.create({
   list: { padding: spacing.lg, gap: spacing.md },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  line: { flexDirection: 'row', gap: spacing.sm },
 });

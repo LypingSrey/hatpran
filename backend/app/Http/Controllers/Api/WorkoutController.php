@@ -16,6 +16,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class WorkoutController extends Controller
 {
@@ -125,22 +126,34 @@ class WorkoutController extends Controller
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
             'notes' => 'nullable|string',
-            'completed_at' => ['nullable', 'date', 'after_or_equal:'.$workout->started_at->toIso8601String()],
+            'started_at' => 'sometimes|required|date',
+            'completed_at' => 'nullable|date',
         ]);
 
+        $startedAt = isset($validated['started_at']) ? Carbon::parse($validated['started_at']) : $workout->started_at;
+
+        if (isset($validated['completed_at']) && Carbon::parse($validated['completed_at'])->lt($startedAt)) {
+            throw ValidationException::withMessages([
+                'completed_at' => 'The finish time must be after the start time.',
+            ]);
+        }
+
         $personalRecords = DB::transaction(function () use ($workout, $validated) {
-            $workout->update(collect($validated)->except('completed_at')->all());
-
-            if (! array_key_exists('completed_at', $validated)) {
-                return new Collection;
-            }
-
             $wasCompleted = $workout->completed_at !== null;
 
-            if ($validated['completed_at'] === null) {
-                $workout->update(['completed_at' => null, 'duration_seconds' => null]);
+            $workout->update(collect($validated)->except('completed_at')->all());
+
+            if (array_key_exists('completed_at', $validated)) {
+                if ($validated['completed_at'] === null) {
+                    $workout->update(['completed_at' => null, 'duration_seconds' => null]);
+                } else {
+                    $workout->markCompleted(Carbon::parse($validated['completed_at']));
+                }
+            } elseif ($wasCompleted && isset($validated['started_at'])) {
+                // Moving a finished workout to another time keeps its duration.
+                $workout->markCompleted($workout->started_at->copy()->addSeconds($workout->duration_seconds ?? 0));
             } else {
-                $workout->markCompleted(Carbon::parse($validated['completed_at']));
+                return new Collection;
             }
 
             if (! $wasCompleted && $workout->completed_at) {

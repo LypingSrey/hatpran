@@ -88,6 +88,7 @@ class Workout extends Model
 
                     $record->fill([
                         'exercise_set_id' => $set->id,
+                        'manual_record_id' => null,
                         'value' => $value,
                         'achieved_at' => $this->completed_at,
                     ])->save();
