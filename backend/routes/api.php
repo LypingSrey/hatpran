@@ -25,6 +25,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('user', [ProfileController::class, 'update'])->middleware('throttle:6,1');
     Route::put('user/password', [ProfileController::class, 'updatePassword'])->middleware('throttle:6,1');
     Route::get('user/stats', [ProfileController::class, 'stats']);
+    Route::post('user/avatar', [ProfileController::class, 'updateAvatar'])->middleware('throttle:10,1');
+    Route::delete('user/avatar', [ProfileController::class, 'destroyAvatar']);
 
     // Muscle Groups (read-only)
     Route::get('muscle-groups', [MuscleGroupController::class, 'index']);

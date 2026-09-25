@@ -69,16 +69,18 @@ export function setUnauthorizedHandler(handler: (() => void) | null) {
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
+  const isForm = body instanceof FormData;
   let response: Response;
   try {
     response = await fetch(`${API_URL}${path}`, {
       method,
       headers: {
         Accept: 'application/json',
-        'Content-Type': 'application/json',
+        // FormData sets its own multipart Content-Type, including the boundary.
+        ...(isForm ? {} : { 'Content-Type': 'application/json' }),
         ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
     });
   } catch {
     throw new ApiError(`Can't reach the server at ${API_URL}. Is the Laravel API running?`, 0);
@@ -142,6 +144,8 @@ export const api = {
   updatePassword: (body: { current_password: string; password: string; password_confirmation: string }) =>
     request<{ message: string }>('PUT', '/user/password', body),
   stats: () => request<Data<UserStats>>('GET', '/user/stats'),
+  uploadAvatar: (form: FormData) => request<User>('POST', '/user/avatar', form),
+  deleteAvatar: () => request<User>('DELETE', '/user/avatar'),
 
   muscleGroups: () => request<Data<NamedRef[]>>('GET', '/muscle-groups'),
   equipment: () => request<Data<NamedRef[]>>('GET', '/equipment'),

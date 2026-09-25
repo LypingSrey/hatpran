@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { Avatar } from '@/components/Avatar';
 import { Button, Card, ErrorBanner, Field, text } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { avatarForm, CameraPermissionError, pickAvatar, type AvatarSource } from '@/lib/avatar';
+import { confirm } from '@/lib/dialogs';
 import { colors, spacing } from '@/lib/theme';
 
 function asApiError(e: unknown): ApiError {
@@ -27,7 +30,40 @@ export default function EditProfileScreen() {
   const [passwordSaved, setPasswordSaved] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
+  const [pictureBusy, setPictureBusy] = useState<AvatarSource | 'remove' | null>(null);
+  const [pictureError, setPictureError] = useState<string | null>(null);
+
   if (!user) return null;
+
+  const changePicture = async (source: AvatarSource) => {
+    setPictureError(null);
+    try {
+      const asset = await pickAvatar(source);
+      if (!asset) return;
+      setPictureBusy(source);
+      updateUser(await api.uploadAvatar(await avatarForm(asset)));
+    } catch (e) {
+      if (e instanceof ApiError) setPictureError(e.field('avatar') ?? e.message);
+      else if (e instanceof CameraPermissionError) setPictureError(e.message);
+      // The simulator and some desktops have no camera; the picker throws rather than opening.
+      else setPictureError(source === 'camera' ? 'No camera is available on this device.' : 'Could not open your photos.');
+    } finally {
+      setPictureBusy(null);
+    }
+  };
+
+  const removePicture = () =>
+    confirm('Remove profile picture?', 'Your initial will be shown instead.', 'Remove', async () => {
+      setPictureBusy('remove');
+      setPictureError(null);
+      try {
+        updateUser(await api.deleteAvatar());
+      } catch (e) {
+        setPictureError(asApiError(e).message);
+      } finally {
+        setPictureBusy(null);
+      }
+    });
 
   const emailChanged = email.trim() !== user.email;
   const detailsChanged = name.trim() !== user.name || emailChanged;
@@ -78,6 +114,38 @@ export default function EditProfileScreen() {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <Card style={[styles.section, { alignItems: 'center' }]}>
+          <Avatar user={user} size={112} />
+          {pictureError ? <Text style={styles.error}>{pictureError}</Text> : null}
+          <View style={styles.pictureButtons}>
+            <Button
+              title="Choose photo"
+              variant="secondary"
+              onPress={() => changePicture('library')}
+              loading={pictureBusy === 'library'}
+              disabled={pictureBusy !== null}
+              style={{ flex: 1 }}
+            />
+            <Button
+              title="Take photo"
+              variant="secondary"
+              onPress={() => changePicture('camera')}
+              loading={pictureBusy === 'camera'}
+              disabled={pictureBusy !== null}
+              style={{ flex: 1 }}
+            />
+          </View>
+          {user.avatar_url ? (
+            <Button
+              title="Remove picture"
+              variant="ghost"
+              onPress={removePicture}
+              loading={pictureBusy === 'remove'}
+              disabled={pictureBusy !== null}
+            />
+          ) : null}
+        </Card>
+
         <Card style={styles.section}>
           <Text style={text.heading}>Details</Text>
           {detailsError && !hasFieldErrors(detailsError) ? <ErrorBanner message={detailsError.message} /> : null}
@@ -171,4 +239,6 @@ const styles = StyleSheet.create({
   container: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl * 2 },
   section: { gap: spacing.md },
   saved: { color: colors.success, fontSize: 14, fontWeight: '600' },
+  error: { color: colors.danger, fontSize: 14, textAlign: 'center' },
+  pictureButtons: { flexDirection: 'row', gap: spacing.sm, alignSelf: 'stretch' },
 });
