@@ -65,7 +65,8 @@ export default function EditProfileScreen() {
       }
     });
 
-  const emailChanged = email.trim() !== user.email;
+  // The API stores emails in lowercase, so a change of case alone isn't a new email.
+  const emailChanged = email.trim().toLowerCase() !== user.email;
   const detailsChanged = name.trim() !== user.name || emailChanged;
 
   const saveDetails = async () => {

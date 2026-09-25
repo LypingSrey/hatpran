@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api;
 
+use App\Models\Exercise;
 use App\Models\ExerciseSet;
 use App\Models\PersonalRecord;
 use App\Models\User;
@@ -81,6 +82,42 @@ class ProfileControllerTest extends TestCase
         Sanctum::actingAs($user);
 
         $this->putJson('/api/user', ['name' => 'Renamed', 'email' => 'same@example.com'])->assertOk();
+    }
+
+    public function test_update_stores_the_new_email_in_lowercase(): void
+    {
+        $user = User::factory()->create(['password' => 'secret-pass']);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/user', ['email' => 'New@Example.com', 'current_password' => 'secret-pass'])
+            ->assertOk()
+            ->assertJsonPath('email', 'new@example.com');
+
+        $this->assertSame('new@example.com', $user->fresh()->email);
+    }
+
+    public function test_update_accepts_own_email_in_different_case_without_password(): void
+    {
+        $user = User::factory()->create(['email' => 'sam@example.com']);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/user', ['email' => 'Sam@Example.com'])
+            ->assertOk()
+            ->assertJsonPath('email', 'sam@example.com');
+    }
+
+    public function test_update_rejects_another_users_email_in_different_case_with_422(): void
+    {
+        User::factory()->create(['email' => 'taken@example.com']);
+        $user = User::factory()->create(['password' => 'secret-pass']);
+
+        Sanctum::actingAs($user);
+
+        $this->putJson('/api/user', ['email' => 'Taken@Example.com', 'current_password' => 'secret-pass'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email' => 'The email has already been taken.']);
     }
 
     public function test_update_rejects_an_email_another_user_has_with_422(): void
@@ -248,5 +285,27 @@ class ProfileControllerTest extends TestCase
                     'records_count' => 1,
                 ],
             ]);
+    }
+
+    public function test_stats_leave_assisted_weight_out_of_total_volume(): void
+    {
+        $user = User::factory()->create();
+        $workout = Workout::factory()->for($user)->create();
+
+        $bench = Exercise::factory()->create(['exercise_type' => 'weight_reps']);
+        ExerciseSet::factory()->for(WorkoutExercise::factory()->for($workout)->for($bench))
+            ->create(['weight_kg' => 100, 'reps' => 5]);
+
+        // The weight on an assisted exercise is help, not load, so it adds no volume.
+        $assistedPullUp = Exercise::factory()->create(['exercise_type' => 'assisted_bodyweight']);
+        ExerciseSet::factory()->for(WorkoutExercise::factory()->for($workout)->for($assistedPullUp))
+            ->create(['weight_kg' => 40, 'reps' => 10]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/user/stats')
+            ->assertOk()
+            ->assertJsonPath('data.total_sets', 2)
+            ->assertJsonPath('data.total_volume', 500);
     }
 }

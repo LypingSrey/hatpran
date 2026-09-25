@@ -93,6 +93,21 @@ class ExerciseSetControllerTest extends TestCase
         $this->assertDatabaseCount('exercise_sets', 0);
     }
 
+    public function test_store_rejects_more_than_10000_reps_with_422(): void
+    {
+        $user = User::factory()->create();
+        $workoutExercise = $this->workoutExerciseFor($user);
+
+        Sanctum::actingAs($user);
+
+        $this->postJson("/api/workout-exercises/{$workoutExercise->id}/sets", ['weight_kg' => 100, 'reps' => 10001])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['reps']);
+
+        $this->postJson("/api/workout-exercises/{$workoutExercise->id}/sets", ['weight_kg' => 100, 'reps' => 10000])
+            ->assertCreated();
+    }
+
     public function test_store_forbids_adding_to_another_users_workout_with_403(): void
     {
         $workoutExercise = $this->workoutExerciseFor(User::factory()->create());

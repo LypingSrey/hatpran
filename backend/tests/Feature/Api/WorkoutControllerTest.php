@@ -225,6 +225,28 @@ class WorkoutControllerTest extends TestCase
             ->assertJsonCount(3, 'data.exercises.0.sets');
     }
 
+    public function test_show_leaves_assisted_weight_out_of_total_volume(): void
+    {
+        $user = User::factory()->create();
+        $workout = Workout::factory()->for($user)->create();
+
+        $bench = Exercise::factory()->create(['exercise_type' => 'weight_reps']);
+        ExerciseSet::factory()->for(WorkoutExercise::factory()->for($workout)->for($bench)->create(['order' => 0]))
+            ->create(['weight_kg' => 100, 'reps' => 5]);
+
+        // The weight on an assisted exercise is help, not load, so it adds no volume.
+        $assistedPullUp = Exercise::factory()->create(['exercise_type' => 'assisted_bodyweight']);
+        ExerciseSet::factory()->for(WorkoutExercise::factory()->for($workout)->for($assistedPullUp)->create(['order' => 1]))
+            ->create(['weight_kg' => 40, 'reps' => 10]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson("/api/workouts/{$workout->id}")
+            ->assertOk()
+            ->assertJsonPath('data.total_volume', 500)
+            ->assertJsonPath('data.total_sets', 2);
+    }
+
     public function test_show_forbids_another_users_workout_with_403(): void
     {
         $workout = Workout::factory()->create();
@@ -258,6 +280,27 @@ class WorkoutControllerTest extends TestCase
         $workout->refresh();
         $this->assertTrue($workout->completed_at->equalTo(now()));
         $this->assertSame(2700, $workout->duration_seconds);
+    }
+
+    public function test_complete_records_the_largest_allowed_set_without_overflowing(): void
+    {
+        $user = User::factory()->create();
+        $exercise = Exercise::factory()->create(['exercise_type' => 'weight_reps']);
+        $workout = Workout::factory()->for($user)->inProgress()->create();
+        $workoutExercise = WorkoutExercise::factory()->for($workout)->for($exercise)->create();
+        $set = ExerciseSet::factory()->for($workoutExercise)->incomplete()->create();
+
+        Sanctum::actingAs($user);
+
+        $this->putJson("/api/sets/{$set->id}", ['weight_kg' => 999999.99, 'reps' => 10000, 'is_completed' => true])
+            ->assertOk();
+
+        $this->postJson("/api/workouts/{$workout->id}/complete")->assertOk();
+
+        $this->assertEquals(
+            9999999900,
+            PersonalRecord::where('exercise_id', $exercise->id)->where('record_type', 'max_volume')->value('value'),
+        );
     }
 
     public function test_complete_twice_keeps_original_completion(): void
