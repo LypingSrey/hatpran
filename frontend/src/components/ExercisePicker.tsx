@@ -10,17 +10,21 @@ import { errorMessage } from '@/lib/useApi';
 
 import { Button, ErrorBanner, Loading, text } from './ui';
 
-/** Full-screen sheet for choosing one or more exercises. */
+/** Full-screen sheet for choosing one or more exercises. With `single`, a tap picks and closes. */
 export function ExercisePicker({
   visible,
   onClose,
   onDone,
   excludeIds = [],
+  single = false,
+  title = single ? 'Choose exercise' : 'Add exercises',
 }: {
   visible: boolean;
   onClose: () => void;
   onDone: (exercises: Exercise[]) => void;
   excludeIds?: number[];
+  single?: boolean;
+  title?: string;
 }) {
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<Exercise[] | null>(null);
@@ -66,16 +70,21 @@ export function ExercisePicker({
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Button title="Cancel" variant="ghost" onPress={close} />
-          <Text style={text.heading}>Add exercises</Text>
-          <Button
-            title={selected.length ? `Add (${selected.length})` : 'Add'}
-            variant="ghost"
-            disabled={selected.length === 0}
-            onPress={() => {
-              onDone(selected);
-              setSelected([]);
-            }}
-          />
+          <Text style={text.heading}>{title}</Text>
+          {single ? (
+            // Keeps the title centred.
+            <View style={{ width: 80 }} />
+          ) : (
+            <Button
+              title={selected.length ? `Add (${selected.length})` : 'Add'}
+              variant="ghost"
+              disabled={selected.length === 0}
+              onPress={() => {
+                onDone(selected);
+                setSelected([]);
+              }}
+            />
+          )}
         </View>
 
         <View style={styles.searchBox}>
@@ -106,9 +115,9 @@ export function ExercisePicker({
               const isSelected = selected.some((e) => e.id === item.id);
               return (
                 <Pressable
-                  onPress={() => toggle(item)}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: isSelected }}
+                  onPress={() => (single ? onDone([item]) : toggle(item))}
+                  accessibilityRole={single ? 'button' : 'checkbox'}
+                  accessibilityState={single ? undefined : { checked: isSelected }}
                   style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfaceMuted }]}
                 >
                   <View style={{ flex: 1 }}>
@@ -119,11 +128,15 @@ export function ExercisePicker({
                         .join(' · ')}
                     </Text>
                   </View>
-                  <Ionicons
-                    name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
-                    size={24}
-                    color={isSelected ? colors.primary : colors.border}
-                  />
+                  {single ? (
+                    <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+                  ) : (
+                    <Ionicons
+                      name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                      size={24}
+                      color={isSelected ? colors.primary : colors.border}
+                    />
+                  )}
                 </Pressable>
               );
             }}

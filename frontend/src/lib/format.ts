@@ -12,7 +12,41 @@ export function formatDuration(totalSeconds: number | null | undefined): string 
 
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const date = new Date(iso);
+  // Show the year only when it isn't this year, e.g. for records entered from before the app.
+  const showYear = date.getFullYear() !== new Date().getFullYear();
+  return date.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    ...(showYear ? { year: 'numeric' } : {}),
+  });
+}
+
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** Local calendar date as YYYY-MM-DD, for date inputs. */
+export function toDateInput(date: Date): string {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** Local time as HH:MM, for time inputs. */
+export function toTimeInput(date: Date): string {
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * Combine a YYYY-MM-DD date and HH:MM time typed by the user into a local Date.
+ * Returns null when either is malformed or names a day that doesn't exist (e.g. 2026-02-30).
+ */
+export function parseDateTimeInput(dateText: string, timeText = '12:00'): Date | null {
+  const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateText.trim());
+  const t = /^(\d{1,2}):(\d{2})$/.exec(timeText.trim());
+  if (!d || !t) return null;
+  const [year, month, day, hours, minutes] = [...d.slice(1), ...t.slice(1)].map(Number);
+  if (hours > 23 || minutes > 59) return null;
+  const date = new Date(year, month - 1, day, hours, minutes);
+  return date.getMonth() === month - 1 && date.getDate() === day ? date : null;
 }
 
 export function formatNumber(value: number | null | undefined, maxDecimals = 1): string {
@@ -42,6 +76,33 @@ export function formatRecordValue(type: RecordType, value: number): string {
       return `${formatNumber(value, 0)} m`;
   }
 }
+
+/** Which records an exercise type tracks. Mirrors Exercise::personalRecordTypes() in the API. */
+export function recordTypesFor(type: ExerciseType): RecordType[] {
+  switch (type) {
+    case 'weight_reps':
+    case 'weighted_bodyweight':
+      return ['max_weight', 'max_reps', 'max_volume'];
+    case 'bodyweight_reps':
+    case 'assisted_bodyweight':
+      return ['max_reps'];
+    case 'duration':
+      return ['max_duration'];
+    case 'distance_duration':
+      return ['max_distance', 'max_duration'];
+    case 'weight_distance':
+      return ['max_weight', 'max_distance'];
+  }
+}
+
+/** Input label for typing a record value, and whether it takes decimals. */
+export const recordInputs: Record<RecordType, { label: string; decimals: boolean }> = {
+  max_weight: { label: 'Weight (kg)', decimals: true },
+  max_reps: { label: 'Reps', decimals: false },
+  max_volume: { label: 'Set volume (kg × reps)', decimals: true },
+  max_duration: { label: 'Duration (seconds)', decimals: false },
+  max_distance: { label: 'Distance (meters)', decimals: false },
+};
 
 export const exerciseTypeLabels: Record<ExerciseType, string> = {
   weight_reps: 'Weight & reps',

@@ -15,7 +15,7 @@ class PersonalRecordController extends Controller
     {
         $records = $request->user()
             ->personalRecords()
-            ->with(['exercise'])
+            ->with(['exercise', 'exerciseSet.workoutExercise.workout'])
             ->when($request->integer('exercise_id'), fn ($q, $id) => $q->where('exercise_id', $id))
             ->when($request->string('record_type')->value(), fn ($q, $type) => $q->where('record_type', $type))
             ->latest('achieved_at')
@@ -31,7 +31,7 @@ class PersonalRecordController extends Controller
             abort(403);
         }
 
-        return new PersonalRecordResource($personalRecord->load('exercise'));
+        return new PersonalRecordResource($personalRecord->load(['exercise', 'exerciseSet.workoutExercise.workout']));
     }
 
     public function forExercise(Request $request, Exercise $exercise): AnonymousResourceCollection
@@ -43,7 +43,7 @@ class PersonalRecordController extends Controller
         $records = $request->user()
             ->personalRecords()
             ->where('exercise_id', $exercise->id)
-            ->with(['exercise'])
+            ->with(['exercise', 'exerciseSet.workoutExercise.workout'])
             ->get();
 
         return PersonalRecordResource::collection($records);

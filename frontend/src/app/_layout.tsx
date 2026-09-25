@@ -36,6 +36,9 @@ function RootNavigator() {
         <Stack.Screen name="template/new" options={{ title: 'New template', presentation: 'modal' }} />
         <Stack.Screen name="exercise/[id]" options={{ title: 'Exercise' }} />
         <Stack.Screen name="exercise/new" options={{ title: 'Custom exercise', presentation: 'modal' }} />
+        <Stack.Screen name="workout/edit/[id]" options={{ title: 'Edit workout', presentation: 'modal' }} />
+        <Stack.Screen name="profile/edit" options={{ title: 'Edit profile', presentation: 'modal' }} />
+        <Stack.Screen name="record/manual" options={{ title: 'Record', presentation: 'modal' }} />
       </Stack.Protected>
     </Stack>
   );
