@@ -1,23 +1,24 @@
-# HatPran frontend
+# HatPran app
 
-React Native (Expo SDK 57 + Expo Router) app for the HatPran workout API in `~/Desktop/HatPran`.
+The React Native app for HatPran (Expo SDK 57 + Expo Router). It runs on iOS, Android and the web, and talks to
+the Laravel API in [`../backend`](../backend).
 
 ## Run it
 
-1. Start the Laravel API (from `~/Desktop/HatPran`), listening on all interfaces so phones/emulators can reach it:
+1. Start the API from `../backend`, listening on all interfaces so phones and emulators can reach it:
 
    ```bash
    php artisan serve --host=0.0.0.0 --port=8000
    ```
 
-2. Start the app (from this folder):
+2. Start the app from this folder:
 
    ```bash
    npm install        # first time only
    npx expo start
    ```
 
-   Then press `i` (iOS simulator), `a` (Android emulator), or `w` (web), or scan the QR code with Expo Go.
+   Then press `i` (iOS simulator), `a` (Android emulator) or `w` (web), or scan the QR code with Expo Go.
 
 ## Pointing at the API
 
@@ -42,6 +43,12 @@ npx expo lint      # lint
 
 ## Structure
 
-- `src/app/` — screens (Expo Router). `(tabs)/` holds Workouts, Templates, Exercises, Records, Profile; `workout/`, `template/`, `exercise/` hold detail and create screens.
-- `src/lib/` — API client (`api.ts`), auth/session (`auth.tsx`, token in SecureStore; localStorage on web), types, formatting.
-- `src/components/` — shared UI, the set-logging row, and the exercise picker.
+- `src/app/`: screens, using Expo Router's file-based routes.
+  - `(tabs)/`: the five tabs, Workouts, Templates, Exercises, Records and Profile.
+  - `workout/`, `template/`, `exercise/`: detail and create screens. `workout/edit/` edits a finished workout.
+  - `profile/edit`: profile picture, name, email and password.
+  - `record/manual`: add, edit or delete a record entered by hand.
+- `src/lib/`: the API client (`api.ts`), session handling (`auth.tsx`; the token lives in SecureStore, or
+  localStorage on the web), types, formatting, dialogs and the profile picture picker.
+- `src/components/`: shared UI (`ui.tsx`), the set-logging row, the exercise picker, and the workout, record,
+  avatar and date components.
