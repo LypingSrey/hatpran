@@ -95,6 +95,14 @@ export function recordTypesFor(type: ExerciseType): RecordType[] {
   }
 }
 
+/**
+ * Whether a set's weight × reps counts as volume. An assisted exercise's weight is help, not load.
+ * Mirrors Exercise::countsTowardVolume() in the API.
+ */
+export function countsTowardVolume(type: ExerciseType): boolean {
+  return type !== 'assisted_bodyweight';
+}
+
 /** Input label for typing a record value, and whether it takes decimals. */
 export const recordInputs: Record<RecordType, { label: string; decimals: boolean }> = {
   max_weight: { label: 'Weight (kg)', decimals: true },

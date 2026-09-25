@@ -112,6 +112,7 @@ class Workout extends Model
     public function getTotalVolumeAttribute(): float
     {
         return $this->workoutExercises
+            ->filter(fn ($we) => $we->exercise?->countsTowardVolume() ?? true)
             ->flatMap(fn ($we) => $we->sets)
             ->where('is_completed', true)
             ->sum(fn ($set) => ($set->weight_kg ?? 0) * ($set->reps ?? 0));

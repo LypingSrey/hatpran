@@ -35,13 +35,16 @@ class ExerciseSet extends Model
     /**
      * Validation rules for a set's measurements, bounded by the column sizes.
      *
+     * Reps stop at 10,000 so the heaviest possible set's volume (weight × reps) still fits
+     * in personal_records.value, decimal(12, 2); otherwise finishing the workout would fail.
+     *
      * @return array<string, string>
      */
     public static function measurementRules(string $prefix = ''): array
     {
         return [
             $prefix.'weight_kg' => 'nullable|numeric|min:0|max:999999.99',
-            $prefix.'reps' => 'nullable|integer|min:0|max:2147483647',
+            $prefix.'reps' => 'nullable|integer|min:0|max:10000',
             $prefix.'distance_meters' => 'nullable|integer|min:0|max:2147483647',
             $prefix.'duration_seconds' => 'nullable|integer|min:0|max:2147483647',
             $prefix.'rpe' => 'nullable|integer|min:1|max:10',
