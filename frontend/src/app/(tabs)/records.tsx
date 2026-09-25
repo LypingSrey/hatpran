@@ -35,13 +35,14 @@ function groupByExercise(records: PersonalRecord[]): Group[] {
 }
 
 export default function RecordsScreen() {
-  const { data, error, isLoading, isRefreshing, refresh } = useApi(() => api.personalRecords());
+  // Load every page: records are grouped by exercise, so a partial list would split or drop groups.
+  const { data, error, isLoading, isRefreshing, refresh } = useApi(() => api.allPersonalRecords());
 
   if (isLoading && !data) return <Loading />;
 
   return (
     <FlatList
-      data={groupByExercise(data?.data ?? [])}
+      data={groupByExercise(data ?? [])}
       keyExtractor={(g) => String(g.exerciseId)}
       contentContainerStyle={styles.list}
       refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={refresh} />}
