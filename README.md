@@ -1,5 +1,7 @@
 # HatPran
 
+[![CI](https://github.com/LypingSrey/hatpran/actions/workflows/ci.yml/badge.svg)](https://github.com/LypingSrey/hatpran/actions/workflows/ci.yml)
+
 A workout tracker for iPhone, Android and the web. Log your sets as you train, save routines as templates, and let
 HatPran keep your personal records up to date automatically.
 
@@ -77,6 +79,8 @@ cd frontend
 npx tsc --noEmit   # typecheck
 npx expo lint      # lint
 ```
+
+GitHub Actions runs all of these on every push ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 ## Documentation
 
