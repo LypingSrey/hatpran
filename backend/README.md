@@ -1,58 +1,107 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# HatPran API
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+The Laravel 13 REST API behind the HatPran app. It handles accounts, workouts, sets, templates, the exercise
+library and personal records. Setup steps are in the [main README](../README.md#getting-started).
 
-## About Laravel
+## Conventions
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- Every route is under `/api` and speaks JSON. Send `Accept: application/json`.
+- Sign in with `POST /api/register` or `POST /api/login` to get a token, then send it as
+  `Authorization: Bearer <token>` on every other request. Tokens come from Laravel Sanctum.
+- Lists are paginated: `?page=2&per_page=50` (up to 100). The response has `data` and `meta.last_page`.
+- `401` means a missing or invalid token, `403` means the item belongs to another user, and `422` returns
+  validation messages in `errors`, keyed by field.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Endpoints
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### Account and profile
 
-## Learning Laravel
+| Method | Path | Does |
+| --- | --- | --- |
+| POST | `/register` | Create an account and return a token |
+| POST | `/login` | Return a token for an email and password |
+| POST | `/logout` | Revoke the current token |
+| GET | `/user` | The signed-in user, including `avatar_url` |
+| PUT | `/user` | Change name and email. A new email needs `current_password`. Limited to 6 per minute |
+| PUT | `/user/password` | Change password. Signs out every other device. Limited to 6 per minute |
+| POST | `/user/avatar` | Upload a profile picture (`avatar`: JPEG, PNG or WebP, up to 5 MB). Limited to 10 per minute |
+| DELETE | `/user/avatar` | Remove the profile picture |
+| GET | `/user/stats` | Lifetime totals: workouts, duration, sets, volume, records |
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+### Workouts and sets
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+| Method | Path | Does |
+| --- | --- | --- |
+| GET | `/workouts` | Your workouts, newest first. Filter with `?completed=1` or `?in_progress=1` |
+| POST | `/workouts` | Start a workout, optionally with exercises and blank sets |
+| GET | `/workouts/{id}` | A workout with its exercises, sets and totals |
+| PUT | `/workouts/{id}` | Change name, notes, `started_at` or `completed_at`. Moving a finished workout keeps its duration |
+| POST | `/workouts/{id}/complete` | Finish a workout and return any new personal records |
+| DELETE | `/workouts/{id}` | Delete a workout and rebuild the affected records |
+| GET | `/workout-exercises/{id}/sets` | Sets for one exercise in a workout |
+| POST | `/workout-exercises/{id}/sets` | Add a set |
+| GET / PUT / DELETE | `/sets/{id}` | Read, change or delete a set |
+| POST | `/sets/{id}/complete` | Tick a set as done |
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+### Templates
 
-## Agentic Development
+| Method | Path | Does |
+| --- | --- | --- |
+| GET / POST | `/workout-templates` | List or create templates |
+| GET / PUT / DELETE | `/workout-templates/{id}` | Read, change or delete a template |
+| POST | `/workout-templates/{id}/start` | Start a workout from a template |
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### Exercise library
+
+| Method | Path | Does |
+| --- | --- | --- |
+| GET | `/exercises` | Built-in and your custom exercises. Filter with `search`, `muscle_group_id`, `equipment_id`, `custom_only` |
+| POST | `/exercises` | Create a custom exercise |
+| GET / PUT / DELETE | `/exercises/{id}` | Read, or change and delete your own custom exercise |
+| GET | `/muscle-groups`, `/equipment` | Reference lists, plus `/{id}` for one item |
+
+### Personal records
+
+| Method | Path | Does |
+| --- | --- | --- |
+| GET | `/personal-records` | Your records, most recent first. Filter with `exercise_id`, `record_type` |
+| GET | `/personal-records/{id}` | One record |
+| GET | `/exercises/{id}/personal-records` | Your records for one exercise |
+| GET / POST | `/manual-records` | List or add bests entered by hand. Filter the list with `exercise_id` |
+| GET / PUT / DELETE | `/manual-records/{id}` | Read, change or delete a manual entry |
+
+Run `php artisan route:list --path=api` for the full list with parameters.
+
+## How personal records work
+
+Each exercise type tracks certain records: for example, weight and reps exercises track heaviest weight, most reps
+and best set volume, while duration exercises track longest duration.
+
+- Only ticked sets in finished workouts count. Warmup sets never do.
+- Finishing a workout saves any records it beats and returns them, so the app can celebrate.
+- Editing, adding or deleting a set in a finished workout, or deleting or moving the workout, rebuilds that
+  exercise's records from its full history.
+- Manual entries (`/manual-records`) are bests the user typed in. They live in their own table, so rebuilding
+  never erases them, and they compete with logged sets: the higher value wins, and on a tie the earlier one does.
+  Each record's `source` says whether it came from a `workout` or a `manual` entry.
+
+The logic is in `App\Models\PersonalRecord::recalculate()` and `App\Models\Workout::recordPersonalRecords()`.
+
+## Database
+
+- **Development:** PostgreSQL 17 in Docker (`compose.yaml`) on `127.0.0.1:54320`. Data persists in the
+  `hatpran-pgsql` volume, and only `docker compose down -v` deletes it.
+- **Tests:** a separate container (`compose.testing.yaml`) on port 54329 that is wiped on every run.
+  `phpunit.xml` points tests there, so they never touch development data.
+- **Profile pictures:** stored on the `public` disk under `storage/app/public/avatars`. Run
+  `php artisan storage:link` once so they can be served.
+
+## Tests
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+docker compose -f compose.testing.yaml up -d --wait
+php artisan test
+vendor/bin/pint --test   # code style
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+Feature tests live in `tests/Feature/Api`, one file per controller.
