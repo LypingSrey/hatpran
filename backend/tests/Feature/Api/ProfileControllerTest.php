@@ -308,4 +308,49 @@ class ProfileControllerTest extends TestCase
             ->assertJsonPath('data.total_sets', 2)
             ->assertJsonPath('data.total_volume', 500);
     }
+
+    public function test_destroy_returns_401_without_token(): void
+    {
+        $this->deleteJson('/api/user', ['current_password' => 'secret-pass'])->assertUnauthorized();
+    }
+
+    public function test_destroy_rejects_wrong_password_and_keeps_the_account(): void
+    {
+        $user = User::factory()->create(['password' => 'secret-pass']);
+
+        Sanctum::actingAs($user);
+
+        $this->deleteJson('/api/user', ['current_password' => 'wrong-pass'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('current_password');
+
+        $this->assertModelExists($user);
+    }
+
+    public function test_destroy_deletes_the_account_and_everything_in_it(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('avatars/me.jpg', 'image');
+        $user = User::factory()->create(['password' => 'secret-pass', 'avatar_path' => 'avatars/me.jpg']);
+        $token = $user->createToken('phone')->plainTextToken;
+        $user->createToken('laptop');
+        $builtIn = Exercise::factory()->create();
+        $custom = Exercise::factory()->custom()->for($user)->create();
+        $workout = Workout::factory()->for($user)->create();
+        $other = User::factory()->create();
+        $otherWorkout = Workout::factory()->for($other)->create();
+
+        $this->withToken($token)->deleteJson('/api/user', ['current_password' => 'secret-pass'])->assertNoContent();
+
+        $this->assertModelMissing($user);
+        $this->assertModelMissing($workout);
+        // Custom exercises must go too, not linger as ownerless built-ins.
+        $this->assertModelMissing($custom);
+        $this->assertSame(0, PersonalAccessToken::count());
+        Storage::disk('public')->assertMissing('avatars/me.jpg');
+
+        $this->assertModelExists($builtIn);
+        $this->assertModelExists($other);
+        $this->assertModelExists($otherWorkout);
+    }
 }

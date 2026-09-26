@@ -17,6 +17,8 @@ interface AuthContextValue {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string, passwordConfirmation: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Permanently deletes the account on the server, then signs out here. */
+  deleteAccount: (password: string) => Promise<void>;
   /** Replace the signed-in user after a profile edit. */
   updateUser: (user: User) => void;
 }
@@ -78,6 +80,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } catch {
           // Token may already be invalid; clear locally regardless.
         }
+        await clearSession();
+      },
+      deleteAccount: async (password) => {
+        await api.deleteAccount({ current_password: password });
         await clearSession();
       },
       updateUser: setUser,

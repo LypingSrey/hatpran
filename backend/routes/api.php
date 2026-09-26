@@ -23,6 +23,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Profile (password-checking routes are throttled against guessing)
     Route::put('user', [ProfileController::class, 'update'])->middleware('throttle:6,1');
+    Route::delete('user', [ProfileController::class, 'destroy'])->middleware('throttle:6,1');
     Route::put('user/password', [ProfileController::class, 'updatePassword'])->middleware('throttle:6,1');
     Route::get('user/stats', [ProfileController::class, 'stats']);
     Route::post('user/avatar', [ProfileController::class, 'updateAvatar'])->middleware('throttle:10,1');

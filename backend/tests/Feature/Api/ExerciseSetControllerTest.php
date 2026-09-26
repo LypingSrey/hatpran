@@ -197,6 +197,25 @@ class ExerciseSetControllerTest extends TestCase
         $this->assertModelMissing($set);
     }
 
+    public function test_destroy_renumbers_the_remaining_sets_without_gaps(): void
+    {
+        $user = User::factory()->create();
+        $workoutExercise = $this->workoutExerciseFor($user);
+        $sets = collect([1, 2, 3, 4])->map(
+            fn (int $n) => ExerciseSet::factory()->for($workoutExercise)->create(['set_number' => $n]),
+        );
+        $otherExerciseSet = ExerciseSet::factory()->for($this->workoutExerciseFor($user))->create(['set_number' => 3]);
+
+        Sanctum::actingAs($user);
+        $this->deleteJson("/api/sets/{$sets[1]->id}")->assertNoContent();
+
+        $this->assertSame(
+            [$sets[0]->id => 1, $sets[2]->id => 2, $sets[3]->id => 3],
+            $workoutExercise->sets()->pluck('set_number', 'id')->all(),
+        );
+        $this->assertSame(3, $otherExerciseSet->fresh()->set_number);
+    }
+
     public function test_returns_404_for_non_numeric_set_id(): void
     {
         Sanctum::actingAs(User::factory()->create());
