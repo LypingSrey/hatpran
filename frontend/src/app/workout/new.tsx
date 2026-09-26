@@ -33,13 +33,13 @@ export default function NewWorkoutScreen() {
   const t = useText();
   const c = useColors();
 
-  const start = async () => {
+  const start = async (list: Entry[] = entries) => {
     setSubmitting(true);
     setError(null);
     try {
       const { data } = await api.createWorkout({
         name: name.trim() || defaultName(),
-        exercises: entries.map((e) => ({
+        exercises: list.map((e) => ({
           exercise_id: e.exercise.id,
           sets: Array.from({ length: e.sets }, () => ({})),
         })),
@@ -93,15 +93,19 @@ export default function NewWorkoutScreen() {
         <Button title="Add exercises" icon="add" variant="secondary" onPress={() => setPickerOpen(true)} />
       </Section>
 
-      <Button title="Start workout" onPress={start} loading={submitting} style={styles.start} />
+      <Button title="Start workout" onPress={() => void start()} loading={submitting} style={styles.start} />
 
       <ExercisePicker
         visible={pickerOpen}
         excludeIds={entries.map((e) => e.exercise.id)}
+        doneLabel="Start workout"
         onClose={() => setPickerOpen(false)}
+        // The picker's Start workout starts right away, with three sets for each exercise picked.
         onDone={(picked) => {
-          setEntries((current) => [...current, ...picked.map((exercise) => ({ exercise, sets: 3 }))]);
+          const list = [...entries, ...picked.map((exercise) => ({ exercise, sets: 3 }))];
+          setEntries(list);
           setPickerOpen(false);
+          void start(list);
         }}
       />
     </ScrollView>
