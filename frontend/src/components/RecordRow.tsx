@@ -1,13 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, type Href } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 
 import { formatDate, formatRecordValue, formatTime, recordLabels } from '@/lib/format';
-import { colors, radius, spacing } from '@/lib/theme';
+import { makeStyles, radius, spacing, type, useColors } from '@/lib/theme';
 import type { PersonalRecord } from '@/lib/types';
 
-import { Button, text } from './ui';
+import { Button, useText } from './ui';
 
 /** Where to go to change a record: the entry the user typed in, or the workout whose set holds it. */
 function editRoute(record: PersonalRecord): Href | null {
@@ -24,6 +24,9 @@ function editRoute(record: PersonalRecord): Href | null {
  */
 export function RecordRow({ record, showExercise = false }: { record: PersonalRecord; showExercise?: boolean }) {
   const [expanded, setExpanded] = useState(false);
+  const styles = useStyles();
+  const t = useText();
+  const c = useColors();
   const route = editRoute(record);
   const isManual = record.source === 'manual';
   const label = showExercise
@@ -42,24 +45,24 @@ export function RecordRow({ record, showExercise = false }: { record: PersonalRe
         accessibilityRole="button"
         accessibilityState={{ expanded }}
         accessibilityHint={expanded ? 'Hide where this record is from' : 'Show where this record is from'}
-        style={({ pressed }) => [styles.row, pressed && { opacity: 0.6 }]}
+        style={({ pressed }) => [styles.row, pressed && styles.pressed]}
       >
-        <Text style={[text.body, { flex: 1 }]} numberOfLines={1}>
+        <Text style={[t.body, styles.flex]} numberOfLines={1}>
           {label}
         </Text>
-        <Text style={[text.body, { fontWeight: '700' }]}>{formatRecordValue(record.record_type, record.value)}</Text>
-        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={16} color={colors.textMuted} />
+        <Text style={styles.value}>{formatRecordValue(record.record_type, record.value)}</Text>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={c.textMuted} />
       </Pressable>
 
       {expanded ? (
         <View style={styles.details}>
           <View style={styles.detailLine}>
-            <Ionicons name={isManual ? 'create-outline' : 'barbell-outline'} size={14} color={colors.textMuted} />
-            <Text style={[text.body, { flex: 1 }]}>{origin}</Text>
+            <Ionicons name={isManual ? 'create-outline' : 'barbell-outline'} size={16} color={c.textMuted} />
+            <Text style={[t.body, styles.flex]}>{origin}</Text>
           </View>
           <View style={styles.detailLine}>
-            <Ionicons name="calendar-outline" size={14} color={colors.textMuted} />
-            <Text style={[text.muted, { flex: 1 }]}>{when}</Text>
+            <Ionicons name="calendar-outline" size={16} color={c.textMuted} />
+            <Text style={[t.muted, styles.flex]}>{when}</Text>
           </View>
           {route ? (
             <Button
@@ -75,15 +78,19 @@ export function RecordRow({ record, showExercise = false }: { record: PersonalRe
   );
 }
 
-const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
+const useStyles = makeStyles((c) => ({
+  flex: { flex: 1 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 54, paddingHorizontal: spacing.lg },
+  pressed: { opacity: 0.6 },
+  value: { ...type.bodyStrong, fontVariant: ['tabular-nums'], color: c.text },
   details: {
-    gap: spacing.xs,
-    padding: spacing.md,
-    marginBottom: spacing.xs,
-    borderRadius: radius.sm,
-    backgroundColor: colors.background,
+    gap: spacing.sm,
+    padding: spacing.lg,
+    marginHorizontal: spacing.md,
+    marginBottom: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: c.surfaceMuted,
   },
   detailLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  action: { marginTop: spacing.xs },
-});
+  action: { marginTop: spacing.xs, backgroundColor: c.surface },
+}));

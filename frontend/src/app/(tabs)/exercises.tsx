@@ -1,12 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
-import { Button, Chip, EmptyState, ErrorBanner, Loading, text } from '@/components/ui';
+import { Chip, EmptyState, ErrorBanner, GroupedRow, Loading, ScreenTitle, useText } from '@/components/ui';
 import { api } from '@/lib/api';
 import { exerciseTypeLabels } from '@/lib/format';
-import { colors, radius, spacing } from '@/lib/theme';
+import { makeStyles, radius, spacing, type, useColors } from '@/lib/theme';
 import { useApi } from '@/lib/useApi';
 
 export default function ExercisesScreen() {
@@ -14,6 +14,9 @@ export default function ExercisesScreen() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [muscleGroupId, setMuscleGroupId] = useState<number | undefined>();
   const [customOnly, setCustomOnly] = useState(false);
+  const styles = useStyles();
+  const t = useText();
+  const c = useColors();
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search.trim()), 250);
@@ -31,16 +34,34 @@ export default function ExercisesScreen() {
     [debouncedSearch, muscleGroupId, customOnly],
   );
 
+  const list = exercises.data?.data ?? [];
+
   return (
-    <View style={{ flex: 1 }}>
+    <View style={styles.screen}>
       <View style={styles.filters}>
+        <View style={styles.titleRow}>
+          <ScreenTitle
+            title="Exercises"
+            right={
+              <Pressable
+                onPress={() => router.push('/exercise/new')}
+                accessibilityRole="button"
+                accessibilityLabel="New custom exercise"
+                style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}
+              >
+                <Ionicons name="add" size={26} color={c.onAccent} />
+              </Pressable>
+            }
+          />
+        </View>
         <View style={styles.searchBox}>
-          <Ionicons name="search" size={18} color={colors.textMuted} />
+          <Ionicons name="search" size={18} color={c.textMuted} />
           <TextInput
             value={search}
             onChangeText={setSearch}
             placeholder="Search exercises"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={c.textFaint}
+            selectionColor={c.accent}
             autoCorrect={false}
             clearButtonMode="while-editing"
             style={styles.searchInput}
@@ -65,36 +86,35 @@ export default function ExercisesScreen() {
         <Loading />
       ) : (
         <FlatList
-          data={exercises.data?.data ?? []}
+          data={list}
           keyExtractor={(e) => String(e.id)}
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ paddingBottom: spacing.xl }}
+          contentContainerStyle={styles.list}
           ListHeaderComponent={
-            <View style={{ padding: spacing.lg, gap: spacing.md }}>
-              {exercises.error ? <ErrorBanner message={exercises.error} onRetry={exercises.refresh} /> : null}
-              <Button title="+ Custom exercise" variant="secondary" onPress={() => router.push('/exercise/new')} />
-            </View>
+            exercises.error ? <ErrorBanner message={exercises.error} onRetry={exercises.refresh} /> : null
           }
           ListEmptyComponent={
             exercises.error ? null : <EmptyState title="No exercises match" message="Try a different search or filter." />
           }
-          renderItem={({ item }) => (
-            <Pressable
-              onPress={() => router.push(`/exercise/${item.id}`)}
-              style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfaceMuted }]}
-              accessibilityRole="button"
-            >
-              <View style={{ flex: 1, gap: 2 }}>
-                <Text style={text.body}>{item.name}</Text>
-                <Text style={text.muted}>
-                  {[item.muscle_group?.name, item.equipment?.name, exerciseTypeLabels[item.exercise_type]]
-                    .filter(Boolean)
-                    .join(' · ')}
-                </Text>
-              </View>
-              {item.is_custom ? <Text style={styles.customBadge}>Custom</Text> : null}
-              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-            </Pressable>
+          renderItem={({ item, index }) => (
+            <GroupedRow index={index} total={list.length}>
+              <Pressable
+                onPress={() => router.push(`/exercise/${item.id}`)}
+                style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+                accessibilityRole="button"
+              >
+                <View style={styles.rowText}>
+                  <Text style={t.body}>{item.name}</Text>
+                  <Text style={t.caption}>
+                    {[item.muscle_group?.name, item.equipment?.name, exerciseTypeLabels[item.exercise_type]]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </Text>
+                </View>
+                {item.is_custom ? <Text style={styles.customBadge}>Custom</Text> : null}
+                <Ionicons name="chevron-forward" size={18} color={c.textFaint} />
+              </Pressable>
+            </GroupedRow>
           )}
         />
       )}
@@ -102,39 +122,42 @@ export default function ExercisesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  filters: { paddingTop: spacing.md, gap: spacing.sm, backgroundColor: colors.background },
+const useStyles = makeStyles((c) => ({
+  screen: { flex: 1, backgroundColor: c.background },
+  filters: { gap: spacing.md, paddingBottom: spacing.md },
+  titleRow: { paddingHorizontal: spacing.lg },
+  addButton: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.round,
+    backgroundColor: c.accentFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pressed: { opacity: 0.7 },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     marginHorizontal: spacing.lg,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.md + 2,
     borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: c.surfaceMuted,
   },
-  searchInput: { flex: 1, minHeight: 44, fontSize: 16, color: colors.text },
-  chips: { paddingHorizontal: spacing.lg, gap: spacing.sm },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    backgroundColor: colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
+  searchInput: { ...type.body, flex: 1, minHeight: 46, color: c.text },
+  chips: { gap: spacing.sm, paddingHorizontal: spacing.lg },
+  list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxxl, gap: 0 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 64, paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
+  rowPressed: { backgroundColor: c.surfaceMuted },
+  rowText: { flex: 1, gap: 2 },
   customBadge: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.primary,
-    backgroundColor: colors.surfaceMuted,
+    ...type.caption,
+    fontFamily: type.label.fontFamily,
+    color: c.accent,
+    backgroundColor: c.accentSoft,
     paddingHorizontal: spacing.sm,
     paddingVertical: 2,
     borderRadius: radius.sm,
     overflow: 'hidden',
   },
-});
+}));

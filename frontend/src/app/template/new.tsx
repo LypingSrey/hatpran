@@ -1,12 +1,12 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Fragment, useState } from 'react';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { ExercisePicker } from '@/components/ExercisePicker';
-import { Button, Card, ErrorBanner, Field, text } from '@/components/ui';
+import { Button, Card, ErrorBanner, Field, Rule, Section, useText } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
-import { colors, radius, spacing } from '@/lib/theme';
+import { makeStyles, radius, spacing, type, useColors } from '@/lib/theme';
 import type { Exercise } from '@/lib/types';
 
 interface Entry {
@@ -27,6 +27,9 @@ export default function NewTemplateScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+  const styles = useStyles();
+  const t = useText();
+  const c = useColors();
 
   const save = async () => {
     setSubmitting(true);
@@ -52,39 +55,50 @@ export default function NewTemplateScreen() {
     setEntries((current) => current.map((e, i) => (i === index ? { ...e, ...patch } : e)));
 
   return (
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.screen} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       {error && !error.field('name') ? <ErrorBanner message={error.message} /> : null}
       <Field label="Template name" value={name} onChangeText={setName} placeholder="e.g. Push Day A" error={error?.field('name')} />
       <Field label="Notes (optional)" value={notes} onChangeText={setNotes} multiline />
 
-      <Text style={text.heading}>Exercises</Text>
-      {entries.map((entry, index) => (
-        <Card key={entry.exercise.id} style={{ gap: spacing.sm }}>
-          <View style={styles.entryHeader}>
-            <Text style={[text.body, { flex: 1 }]}>{entry.exercise.name}</Text>
-            <Pressable
-              onPress={() => setEntries((current) => current.filter((_, i) => i !== index))}
-              accessibilityRole="button"
-              accessibilityLabel={`Remove ${entry.exercise.name}`}
-              hitSlop={8}
-            >
-              <Ionicons name="close-circle" size={24} color={colors.textMuted} />
-            </Pressable>
-          </View>
-          <View style={styles.targets}>
-            <TargetInput label="Sets" value={entry.targetSets} onChange={(v) => update(index, { targetSets: v })} />
-            <Text style={text.muted}>×</Text>
-            <TargetInput label="Reps" value={entry.targetReps} onChange={(v) => update(index, { targetReps: v })} />
-          </View>
-        </Card>
-      ))}
+      <Section title="Exercises" style={styles.section}>
+        {entries.length > 0 ? (
+          <Card flush>
+            {entries.map((entry, index) => (
+              <Fragment key={entry.exercise.id}>
+                {index > 0 ? <Rule /> : null}
+                <View style={styles.entry}>
+                  <View style={styles.entryHeader}>
+                    <Text style={[t.body, styles.flex]}>{entry.exercise.name}</Text>
+                    <Pressable
+                      onPress={() => setEntries((current) => current.filter((_, i) => i !== index))}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${entry.exercise.name}`}
+                      style={styles.remove}
+                    >
+                      <Ionicons name="close" size={22} color={c.textMuted} />
+                    </Pressable>
+                  </View>
+                  <View style={styles.targets}>
+                    <TargetInput label="Sets" value={entry.targetSets} onChange={(v) => update(index, { targetSets: v })} />
+                    <Text style={t.muted}>×</Text>
+                    <TargetInput label="Reps" value={entry.targetReps} onChange={(v) => update(index, { targetReps: v })} />
+                  </View>
+                </View>
+              </Fragment>
+            ))}
+          </Card>
+        ) : (
+          <Text style={t.muted}>Add the exercises this routine uses, with target sets and reps.</Text>
+        )}
+        <Button title="Add exercises" icon="add" variant="secondary" onPress={() => setPickerOpen(true)} />
+      </Section>
 
-      <Button title="+ Add exercises" variant="secondary" onPress={() => setPickerOpen(true)} />
       <Button
         title="Save template"
         onPress={save}
         loading={submitting}
         disabled={!name.trim() || entries.length === 0}
+        style={styles.save}
       />
 
       <ExercisePicker
@@ -104,33 +118,45 @@ export default function NewTemplateScreen() {
 }
 
 function TargetInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const styles = useStyles();
+  const t = useText();
+  const c = useColors();
   return (
     <View style={styles.target}>
       <TextInput
         value={value}
         onChangeText={onChange}
         keyboardType="number-pad"
+        selectionColor={c.accent}
         style={styles.targetInput}
         accessibilityLabel={`Target ${label.toLowerCase()}`}
         selectTextOnFocus
       />
-      <Text style={text.muted}>{label}</Text>
+      <Text style={t.muted}>{label}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md },
+const useStyles = makeStyles((c) => ({
+  screen: { backgroundColor: c.background },
+  container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: spacing.xxxl, gap: spacing.xl },
+  section: { marginTop: spacing.md },
+  flex: { flex: 1 },
+  entry: { gap: spacing.sm, paddingVertical: spacing.md, paddingLeft: spacing.lg, paddingRight: spacing.sm },
   entryHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  remove: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginRight: -spacing.sm },
   targets: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   target: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   targetInput: {
-    width: 56,
-    height: 40,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceMuted,
+    ...type.numeral,
+    fontSize: 20,
+    width: 64,
+    height: 44,
+    paddingVertical: 0,
+    borderRadius: radius.md,
+    backgroundColor: c.surfaceMuted,
     textAlign: 'center',
-    fontSize: 16,
-    color: colors.text,
+    color: c.text,
   },
-});
+  save: { marginTop: spacing.md },
+}));

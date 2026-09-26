@@ -1,14 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useEffect, useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Modal, Pressable, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { api } from '@/lib/api';
-import { colors, radius, spacing } from '@/lib/theme';
+import { makeStyles, radius, spacing, type, useColors } from '@/lib/theme';
 import type { Exercise } from '@/lib/types';
 import { errorMessage } from '@/lib/useApi';
 
-import { Button, ErrorBanner, Loading, text } from './ui';
+import { Button, ErrorBanner, GroupedRow, Loading, useText } from './ui';
 
 /** Full-screen sheet for choosing one or more exercises. With `single`, a tap picks and closes. */
 export function ExercisePicker({
@@ -30,6 +30,9 @@ export function ExercisePicker({
   const [results, setResults] = useState<Exercise[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Exercise[]>([]);
+  const styles = useStyles();
+  const t = useText();
+  const c = useColors();
 
   useEffect(() => {
     if (!visible) return;
@@ -70,7 +73,7 @@ export function ExercisePicker({
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <Button title="Cancel" variant="ghost" onPress={close} />
-          <Text style={text.heading}>{title}</Text>
+          <Text style={t.heading}>{title}</Text>
           {single ? (
             // Keeps the title centred.
             <View style={{ width: 80 }} />
@@ -88,12 +91,13 @@ export function ExercisePicker({
         </View>
 
         <View style={styles.searchBox}>
-          <Ionicons name="search" size={18} color={colors.textMuted} />
+          <Ionicons name="search" size={18} color={c.textMuted} />
           <TextInput
             value={search}
             onChangeText={setSearch}
             placeholder="Search exercises"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={c.textFaint}
+            selectionColor={c.accent}
             autoCorrect={false}
             style={styles.searchInput}
             accessibilityLabel="Search exercises"
@@ -109,35 +113,37 @@ export function ExercisePicker({
             data={available}
             keyExtractor={(item) => String(item.id)}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: spacing.xl }}
-            ListEmptyComponent={<Text style={[text.muted, { textAlign: 'center', padding: spacing.xl }]}>No exercises found.</Text>}
-            renderItem={({ item }) => {
+            contentContainerStyle={styles.list}
+            ListEmptyComponent={<Text style={[t.muted, styles.empty]}>No exercises found.</Text>}
+            renderItem={({ item, index }) => {
               const isSelected = selected.some((e) => e.id === item.id);
               return (
+                <GroupedRow index={index} total={available.length}>
                 <Pressable
                   onPress={() => (single ? onDone([item]) : toggle(item))}
                   accessibilityRole={single ? 'button' : 'checkbox'}
                   accessibilityState={single ? undefined : { checked: isSelected }}
-                  style={({ pressed }) => [styles.row, pressed && { backgroundColor: colors.surfaceMuted }]}
+                  style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={text.body}>{item.name}</Text>
-                    <Text style={text.muted}>
+                    <Text style={t.body}>{item.name}</Text>
+                    <Text style={t.caption}>
                       {[item.muscle_group?.name, item.equipment?.name, item.is_custom ? 'Custom' : null]
                         .filter(Boolean)
                         .join(' · ')}
                     </Text>
                   </View>
                   {single ? (
-                    <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+                    <Ionicons name="chevron-forward" size={20} color={c.textFaint} />
                   ) : (
                     <Ionicons
                       name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
-                      size={24}
-                      color={isSelected ? colors.primary : colors.border}
+                      size={26}
+                      color={isSelected ? c.accent : c.ruleStrong}
                     />
                   )}
                 </Pressable>
+                </GroupedRow>
               );
             }}
           />
@@ -147,35 +153,35 @@ export function ExercisePicker({
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+const useStyles = makeStyles((c) => ({
+  container: { flex: 1, backgroundColor: c.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.sm,
+    minHeight: 52,
   },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
     marginHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
     paddingHorizontal: spacing.md,
     borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: c.surfaceMuted,
   },
-  searchInput: { flex: 1, minHeight: 44, fontSize: 16, color: colors.text },
+  searchInput: { ...type.body, flex: 1, minHeight: 44, color: c.text },
+  empty: { textAlign: 'center', padding: spacing.xl },
+  list: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.lg,
+    minHeight: 64,
   },
-});
+  rowPressed: { backgroundColor: c.surfaceMuted },
+}));

@@ -247,6 +247,21 @@ class WorkoutControllerTest extends TestCase
             ->assertJsonPath('data.total_sets', 2);
     }
 
+    public function test_show_includes_each_exercises_muscle_group_and_equipment(): void
+    {
+        $user = User::factory()->create();
+        $workout = Workout::factory()->for($user)->inProgress()->create();
+        $exercise = Exercise::factory()->create();
+        WorkoutExercise::factory()->for($workout)->for($exercise)->create();
+
+        Sanctum::actingAs($user);
+
+        $this->getJson("/api/workouts/{$workout->id}")
+            ->assertOk()
+            ->assertJsonPath('data.exercises.0.exercise.muscle_group.name', $exercise->muscleGroup->name)
+            ->assertJsonPath('data.exercises.0.exercise.equipment.name', $exercise->equipment->name);
+    }
+
     public function test_show_forbids_another_users_workout_with_403(): void
     {
         $workout = Workout::factory()->create();

@@ -1,16 +1,17 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Fragment, useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 
+import { AppearanceMenu } from '@/components/AppearanceMenu';
 import { Avatar } from '@/components/Avatar';
 import { RecordRow } from '@/components/RecordRow';
-import { Button, Card, ErrorBanner, text } from '@/components/ui';
-import { WorkoutCard } from '@/components/WorkoutCard';
+import { Button, Card, ErrorBanner, Rule, ScreenTitle, Section, useText } from '@/components/ui';
+import { WorkoutRow } from '@/components/WorkoutRow';
 import { API_URL, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { formatNumber } from '@/lib/format';
-import { colors, spacing } from '@/lib/theme';
+import { formatDuration, formatNumber } from '@/lib/format';
+import { makeStyles, spacing, type, useColors } from '@/lib/theme';
 import { useApi } from '@/lib/useApi';
 
 const RECENT_COUNT = 5;
@@ -21,6 +22,9 @@ export default function ProfileScreen() {
   const stats = useApi(() => api.stats());
   const recent = useApi(() => api.workouts({ completed: true, per_page: RECENT_COUNT }));
   const records = useApi(() => api.personalRecords({ per_page: RECENT_COUNT }));
+  const styles = useStyles();
+  const t = useText();
+  const c = useColors();
 
   const refresh = () => Promise.all([stats.refresh(), recent.refresh(), records.refresh()]);
   const error = stats.error ?? recent.error ?? records.error;
@@ -29,73 +33,105 @@ export default function ProfileScreen() {
   const recordList = records.data?.data ?? [];
   const memberSince = user ? new Date(user.created_at).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : '';
 
+  const totalRows: [string, string][] = [
+    ['Workouts', totals ? formatNumber(totals.workouts_count, 0) : '—'],
+    ['Time trained', totals ? formatDuration(totals.total_duration_seconds) : '—'],
+    ['Sets', totals ? formatNumber(totals.total_sets, 0) : '—'],
+    ['Volume', totals ? formatVolume(totals.total_volume) : '—'],
+    ['Records', totals ? formatNumber(totals.records_count, 0) : '—'],
+  ];
+
   return (
     <ScrollView
-      contentContainerStyle={styles.container}
+      style={styles.screen}
+      contentContainerStyle={styles.page}
       refreshControl={
         <RefreshControl
           refreshing={stats.isRefreshing || recent.isRefreshing || records.isRefreshing}
           onRefresh={refresh}
+          tintColor={c.textMuted}
         />
       }
     >
-      <Card style={styles.card}>
-        <Pressable
-          onPress={() => router.push('/profile/edit')}
-          accessibilityRole="button"
-          accessibilityLabel="Change profile picture"
-          style={{ marginBottom: spacing.sm }}
-        >
-          <Avatar user={user} />
-        </Pressable>
-        <Text style={text.title}>{user?.name}</Text>
-        <Text style={text.muted}>{user?.email}</Text>
-        <Text style={text.muted}>Member since {memberSince}</Text>
-        <Button
-          title="Edit profile"
-          variant="secondary"
-          onPress={() => router.push('/profile/edit')}
-          style={{ marginTop: spacing.sm, alignSelf: 'stretch' }}
-        />
+      <ScreenTitle title="Profile" right={<AppearanceMenu />} />
+
+      <Card style={styles.identityCard}>
+        <View style={styles.identity}>
+          <Pressable
+            onPress={() => router.push('/profile/edit')}
+            accessibilityRole="button"
+            accessibilityLabel="Change profile picture"
+          >
+            <Avatar user={user} size={64} />
+          </Pressable>
+          <View style={styles.identityText}>
+            <Text style={t.heading} numberOfLines={1}>
+              {user?.name}
+            </Text>
+            <Text style={t.muted} numberOfLines={1}>
+              {user?.email}
+            </Text>
+            <Text style={t.caption}>Member since {memberSince}</Text>
+          </View>
+        </View>
+        <Button title="Edit profile" variant="secondary" onPress={() => router.push('/profile/edit')} />
       </Card>
 
       {error ? <ErrorBanner message={error} onRetry={refresh} /> : null}
 
-      <View style={styles.statsGrid}>
-        <StatTile label="Workouts" value={totals ? formatNumber(totals.workouts_count, 0) : '—'} />
-        <StatTile label="Volume" value={totals ? formatVolume(totals.total_volume) : '—'} />
-        <StatTile label="Sets" value={totals ? formatNumber(totals.total_sets, 0) : '—'} />
-        <StatTile label="Records" value={totals ? formatNumber(totals.records_count, 0) : '—'} />
-      </View>
-
-      <SectionHeader title="Recent workouts" onSeeAll={workouts.length > 0 ? () => router.navigate('/') : undefined} />
-      {workouts.length === 0 && !recent.isLoading ? (
-        <Card>
-          <Text style={text.muted}>Finished workouts will show up here. Tap one to edit it.</Text>
+      <Section title="Lifetime totals" style={styles.section}>
+        <Card flush>
+          {totalRows.map(([label, value], index) => (
+            <Fragment key={label}>
+              {index > 0 ? <Rule /> : null}
+              <View style={styles.totalRow}>
+                <Text style={t.body}>{label}</Text>
+                <Text style={styles.totalValue}>{value}</Text>
+              </View>
+            </Fragment>
+          ))}
         </Card>
-      ) : null}
-      {workouts.map((w) => (
-        <WorkoutCard key={w.id} workout={w} />
-      ))}
+      </Section>
 
-      <SectionHeader
+      <Section
+        title="Recent workouts"
+        action={workouts.length > 0 ? <SeeAll onPress={() => router.navigate('/')} /> : null}
+        style={styles.section}
+      >
+        <Card flush>
+          {workouts.length === 0 && !recent.isLoading ? (
+            <Text style={[t.muted, styles.emptyLine]}>Finished workouts will show up here. Tap one to edit it.</Text>
+          ) : null}
+          {workouts.map((w, index) => (
+            <Fragment key={w.id}>
+              {index > 0 ? <Rule inset={78} /> : null}
+              <WorkoutRow workout={w} />
+            </Fragment>
+          ))}
+        </Card>
+      </Section>
+
+      <Section
         title="Personal records"
-        onSeeAll={recordList.length > 0 ? () => router.navigate('/records') : undefined}
-      />
-      <Card style={{ gap: spacing.xs }}>
-        {recordList.length === 0 && !records.isLoading ? (
-          <Text style={text.muted}>No records yet. Finish a workout, or add a best you set before using HatPran.</Text>
-        ) : null}
-        {recordList.map((r) => (
-          <RecordRow key={r.id} record={r} showExercise />
-        ))}
-        <Button
-          title="+ Add a past record"
-          variant="ghost"
-          onPress={() => router.push('/record/manual')}
-          style={{ marginTop: spacing.xs }}
-        />
-      </Card>
+        action={recordList.length > 0 ? <SeeAll onPress={() => router.navigate('/records')} /> : null}
+        style={styles.section}
+      >
+        <Card flush>
+          {recordList.length === 0 && !records.isLoading ? (
+            <Text style={[t.muted, styles.emptyLine]}>
+              No records yet. Finish a workout, or add a best you set before using HatPran.
+            </Text>
+          ) : null}
+          {recordList.map((r, index) => (
+            <Fragment key={r.id}>
+              {index > 0 ? <Rule /> : null}
+              <RecordRow record={r} showExercise />
+            </Fragment>
+          ))}
+          <Rule inset={0} />
+          <Button title="Add a past record" icon="add" variant="ghost" onPress={() => router.push('/record/manual')} />
+        </Card>
+      </Section>
 
       <Button
         title="Log out"
@@ -105,9 +141,10 @@ export default function ProfileScreen() {
           setSigningOut(true);
           await signOut();
         }}
+        style={styles.logout}
       />
 
-      <Text style={[text.muted, { textAlign: 'center', fontSize: 12 }]}>Server: {API_URL}</Text>
+      <Text style={[t.caption, styles.server]}>Server: {API_URL}</Text>
     </ScrollView>
   );
 }
@@ -117,43 +154,35 @@ function formatVolume(kg: number): string {
   return kg >= 10000 ? `${formatNumber(kg / 1000)} t` : `${formatNumber(kg, 0)} kg`;
 }
 
-function StatTile({ label, value }: { label: string; value: string }) {
+function SeeAll({ onPress }: { onPress: () => void }) {
+  const styles = useStyles();
+  const t = useText();
+  const c = useColors();
   return (
-    <Card style={styles.tile}>
-      <Text style={styles.tileValue} numberOfLines={1} adjustsFontSizeToFit>
-        {value}
-      </Text>
-      <Text style={text.muted}>{label}</Text>
-    </Card>
+    <Pressable onPress={onPress} accessibilityRole="button" hitSlop={12} style={styles.seeAll}>
+      <Text style={t.link}>See all</Text>
+      <Ionicons name="chevron-forward" size={16} color={c.accent} />
+    </Pressable>
   );
 }
 
-function SectionHeader({ title, onSeeAll }: { title: string; onSeeAll?: () => void }) {
-  return (
-    <View style={styles.sectionHeader}>
-      <Text style={text.heading}>{title}</Text>
-      {onSeeAll ? (
-        <Pressable onPress={onSeeAll} accessibilityRole="button" hitSlop={8} style={styles.seeAll}>
-          <Text style={styles.seeAllText}>See all</Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.primary} />
-        </Pressable>
-      ) : null}
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl * 2 },
-  card: { alignItems: 'center', gap: spacing.xs },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  tile: { flexGrow: 1, flexBasis: '45%', alignItems: 'center', gap: 2, paddingVertical: spacing.md },
-  tileValue: { fontSize: 22, fontWeight: '700', color: colors.text },
-  sectionHeader: {
+const useStyles = makeStyles((c) => ({
+  screen: { backgroundColor: c.background },
+  page: { paddingHorizontal: spacing.lg, paddingBottom: spacing.xxxl * 2, gap: spacing.md },
+  identityCard: { gap: spacing.lg },
+  identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.lg },
+  identityText: { flex: 1, gap: 2 },
+  section: { marginTop: spacing.lg },
+  totalRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: spacing.sm,
+    justifyContent: 'space-between',
+    minHeight: 52,
+    paddingHorizontal: spacing.lg,
   },
-  seeAll: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  seeAllText: { color: colors.primary, fontSize: 15, fontWeight: '600' },
-});
+  totalValue: { ...type.bodyStrong, fontVariant: ['tabular-nums'], color: c.text },
+  emptyLine: { padding: spacing.lg },
+  seeAll: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 44 },
+  logout: { marginTop: spacing.xl },
+  server: { textAlign: 'center' },
+}));
