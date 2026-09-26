@@ -10,8 +10,10 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { enter, exit, pressScale, useReduceMotion } from '@/lib/motion';
 import { makeStyles, radius, spacing, type, useColors } from '@/lib/theme';
 
 /** Themed text styles: `const t = useText();` then `<Text style={t.body}>`. */
@@ -30,6 +32,8 @@ export const useText = makeStyles((c) => ({
   figure: { ...type.figure, color: c.text },
   link: { ...type.label, fontFamily: type.bodyStrong.fontFamily, color: c.accent },
 }));
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
@@ -53,19 +57,24 @@ export function Button({
 }) {
   const styles = useStyles();
   const c = useColors();
+  const reduceMotion = useReduceMotion();
+  const [pressed, setPressed] = useState(false);
   const isDisabled = disabled || loading;
   const textColor = { primary: c.onAccent, secondary: c.accent, ghost: c.accent, danger: c.danger }[variant];
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
       accessibilityState={{ disabled: isDisabled, busy: loading }}
       onPress={onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       disabled={isDisabled}
-      style={({ pressed }) => [
+      style={[
         styles.button,
         styles[variant],
         pressed && !isDisabled && (variant === 'primary' ? styles.primaryPressed : styles.pressed),
         isDisabled && styles.disabled,
+        pressScale(pressed && !isDisabled, reduceMotion),
         style,
       ]}
     >
@@ -77,7 +86,7 @@ export function Button({
           <Text style={[styles.buttonText, { color: textColor }]}>{title}</Text>
         </>
       )}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -181,7 +190,7 @@ export function ErrorBanner({ message, onRetry }: { message: string; onRetry?: (
   const styles = useStyles();
   const c = useColors();
   return (
-    <View style={styles.errorBanner} accessibilityRole="alert">
+    <Animated.View entering={enter} exiting={exit} style={styles.errorBanner} accessibilityRole="alert">
       <Ionicons name="alert-circle" size={20} color={c.danger} />
       <Text style={styles.errorText}>{message}</Text>
       {onRetry ? (
@@ -189,7 +198,7 @@ export function ErrorBanner({ message, onRetry }: { message: string; onRetry?: (
           <Text style={styles.errorRetry}>Retry</Text>
         </Pressable>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -218,17 +227,28 @@ export function EmptyState({ title, message, action }: { title: string; message?
 export function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   const styles = useStyles();
   const c = useColors();
+  const reduceMotion = useReduceMotion();
+  const [pressed, setPressed] = useState(false);
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
       accessibilityState={{ selected }}
       onPress={onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
       hitSlop={{ top: 4, bottom: 4 }}
-      style={({ pressed }) => [styles.chip, selected && styles.chipSelected, pressed && styles.pressed]}
+      style={[
+        styles.chip,
+        selected && styles.chipSelected,
+        pressed && styles.pressed,
+        pressScale(pressed, reduceMotion),
+        // The fill eases between off and on; the check swaps at once, so state never waits on the motion.
+        { transitionProperty: ['transform', 'backgroundColor'], transitionDuration: [150, 180] },
+      ]}
     >
       {selected ? <Ionicons name="checkmark" size={16} color={c.onAccent} /> : null}
       <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
