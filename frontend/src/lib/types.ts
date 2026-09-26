@@ -34,8 +34,23 @@ export interface Exercise {
   is_custom: boolean;
   muscle_group?: NamedRef | null;
   equipment?: NamedRef | null;
+  /** The picker group it's listed under; with the muscle group loaded. */
+  category?: ExerciseCategory;
+  /** Every picker group it shows up under, its own first. */
+  categories?: ExerciseCategory[];
   created_at: string;
 }
+
+export type ExerciseCategory =
+  | 'chest'
+  | 'back'
+  | 'shoulders'
+  | 'biceps'
+  | 'triceps'
+  | 'legs'
+  | 'core'
+  | 'cardio'
+  | 'other';
 
 export interface ExerciseSet {
   id: number;

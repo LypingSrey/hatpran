@@ -224,7 +224,18 @@ export function EmptyState({ title, message, action }: { title: string; message?
 }
 
 /** A filter or choice pill. Selected shows a check as well as color, so state never rests on color alone. */
-export function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+export function Chip({
+  label,
+  selected,
+  onPress,
+  count,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+  /** Shown after the label, e.g. how many items the filter matches. */
+  count?: number;
+}) {
   const styles = useStyles();
   const c = useColors();
   const reduceMotion = useReduceMotion();
@@ -248,6 +259,9 @@ export function Chip({ label, selected, onPress }: { label: string; selected: bo
     >
       {selected ? <Ionicons name="checkmark" size={16} color={c.onAccent} /> : null}
       <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
+      {count !== undefined ? (
+        <Text style={[styles.chipCount, selected && styles.chipTextSelected]}>{count}</Text>
+      ) : null}
     </AnimatedPressable>
   );
 }
@@ -348,4 +362,5 @@ const useStyles = makeStyles((c) => ({
   chipSelected: { backgroundColor: c.accentFill },
   chipText: { ...type.label, color: c.text },
   chipTextSelected: { color: c.onAccent, fontFamily: type.bodyStrong.fontFamily },
+  chipCount: { ...type.caption, color: c.textMuted, fontVariant: ['tabular-nums'] },
 }));
