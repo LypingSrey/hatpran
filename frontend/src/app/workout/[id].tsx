@@ -2,12 +2,14 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import Animated, { LayoutAnimationConfig } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SetRow } from '@/components/SetRow';
 import { Button, Card, ErrorBanner, Loading, useText } from '@/components/ui';
 import { api, type SetInput } from '@/lib/api';
 import { confirm, showError } from '@/lib/dialogs';
+import { easeOut, enter } from '@/lib/motion';
 import {
   countsTowardVolume,
   formatClock,
@@ -108,15 +110,20 @@ export default function WorkoutScreen() {
     }
   };
 
+  // Take the set off at once; if the delete fails, put it back in its place.
+  const removeSet = async (we: WorkoutExercise, set: ExerciseSet) => {
+    const index = (we.sets ?? []).findIndex((s) => s.id === set.id);
+    replaceSets(we.id, (sets) => sets.filter((s) => s.id !== set.id));
+    try {
+      await api.deleteSet(set.id);
+    } catch (e) {
+      replaceSets(we.id, (sets) => [...sets.slice(0, index), set, ...sets.slice(index)]);
+      showError(e);
+    }
+  };
+
   const deleteSet = (we: WorkoutExercise, set: ExerciseSet) =>
-    confirm('Delete set?', `Set ${set.set_number} will be removed.`, 'Delete', async () => {
-      try {
-        await api.deleteSet(set.id);
-        replaceSets(we.id, (sets) => sets.filter((s) => s.id !== set.id));
-      } catch (e) {
-        showError(e);
-      }
-    });
+    confirm('Delete set?', `Set ${set.set_number} will be removed.`, 'Delete', () => removeSet(we, set));
 
   const finish = async () => {
     const pending = allSets.filter((s) => !s.is_completed).length;
@@ -179,112 +186,130 @@ export default function WorkoutScreen() {
           contentContainerStyle={[styles.page, !workout.is_completed && { paddingBottom: 120 + insets.bottom }]}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={[styles.titleBlock, compact && styles.titleBlockCompact]}>
-            <Text style={t.title}>{workout.name}</Text>
-            <Text style={t.muted}>
-              {formatDate(workout.started_at)} · Started {formatTime(workout.started_at)}
-              {workout.template ? ` · ${workout.template.name}` : ''}
-            </Text>
-          </View>
-
-          {newRecords ? <FinishedNote records={newRecords} /> : null}
-
-          <Card style={[styles.summary, compact && styles.summaryCompact]}>
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryMain}>
-                <Text style={t.caption}>{workout.is_completed ? 'Duration' : 'Elapsed'}</Text>
-                <Text style={[t.figure, compact && styles.figureCompact]}>
-                  {workout.is_completed ? formatDuration(workout.duration_seconds) : formatClock(elapsed)}
-                </Text>
-              </View>
-              <View style={styles.summaryStats}>
-                <View style={styles.stat}>
-                  <Text style={t.stat}>{formatNumber(totalVolume, 0)}</Text>
-                  <Text style={t.caption}>kg volume</Text>
-                </View>
-                <View style={styles.stat}>
-                  <Text style={t.stat}>
-                    {completedSets.length}/{allSets.length}
-                  </Text>
-                  <Text style={t.caption}>sets done</Text>
-                </View>
-              </View>
+          {/* Rows already there when the screen opens just appear; only sets added or removed afterwards animate. */}
+          <LayoutAnimationConfig skipEntering skipExiting>
+            <View style={[styles.titleBlock, compact && styles.titleBlockCompact]}>
+              <Text style={t.title}>{workout.name}</Text>
+              <Text style={t.muted}>
+                {formatDate(workout.started_at)} · Started {formatTime(workout.started_at)}
+                {workout.template ? ` · ${workout.template.name}` : ''}
+              </Text>
             </View>
-            <View
-              style={styles.progressTrack}
-              accessibilityRole="progressbar"
-              accessibilityLabel="Sets done"
-              accessibilityValue={{ min: 0, max: allSets.length, now: completedSets.length }}
-            >
-              <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
-            </View>
-          </Card>
 
-          {workout.notes ? (
-            <Card>
-              <Text style={t.body}>{workout.notes}</Text>
-            </Card>
-          ) : null}
+            {newRecords ? (
+              <Animated.View entering={enter}>
+                <FinishedNote records={newRecords} />
+              </Animated.View>
+            ) : null}
 
-          {(workout.exercises ?? []).length === 0 ? (
-            <Card>
-              <Text style={t.muted}>This workout has no exercises.</Text>
-            </Card>
-          ) : null}
-
-          {(workout.exercises ?? []).map((we) => {
-            const exerciseType = we.exercise?.exercise_type ?? 'weight_reps';
-            const detail = [we.exercise?.muscle_group?.name, we.exercise?.equipment?.name].filter(Boolean).join(' · ');
-            return (
-              <Card key={we.id} style={styles.exercise}>
-                <View style={styles.exerciseHead}>
-                  <Text style={t.heading} accessibilityRole="header">
-                    {we.exercise?.name ?? 'Exercise'}
+            <Card style={[styles.summary, compact && styles.summaryCompact]}>
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryMain}>
+                  <Text style={t.caption}>{workout.is_completed ? 'Duration' : 'Elapsed'}</Text>
+                  <Text style={[t.figure, compact && styles.figureCompact]}>
+                    {workout.is_completed ? formatDuration(workout.duration_seconds) : formatClock(elapsed)}
                   </Text>
-                  {detail ? <Text style={t.caption}>{detail}</Text> : null}
-                  {we.notes ? <Text style={t.muted}>{we.notes}</Text> : null}
                 </View>
-
-                <View style={styles.columns}>
-                  <Text style={[t.column, styles.setColumn]}>Set</Text>
-                  {setFieldsFor(exerciseType).map(({ field, label }) => (
-                    <Text key={field} style={[t.column, styles.fieldColumn]}>
-                      {label}
+                <View style={styles.summaryStats}>
+                  <View style={styles.stat}>
+                    <Text style={t.stat}>{formatNumber(totalVolume, 0)}</Text>
+                    <Text style={t.caption}>kg volume</Text>
+                  </View>
+                  <View style={styles.stat}>
+                    <Text style={t.stat}>
+                      {completedSets.length}/{allSets.length}
                     </Text>
-                  ))}
-                  <Text style={[t.column, styles.tickColumn]}>Done</Text>
+                    <Text style={t.caption}>sets done</Text>
+                  </View>
                 </View>
-
-                <View style={styles.sets}>
-                  {(we.sets ?? []).map((set, index, sets) => (
-                    <SetRow
-                      key={set.id}
-                      set={set}
-                      exerciseType={exerciseType}
-                      isCurrent={set.id === currentSetId}
-                      hints={index > 0 ? sets[index - 1] : {}}
-                      onSave={(changes) => saveSet(we, set, changes)}
-                      onDelete={() => deleteSet(we, set)}
-                    />
-                  ))}
-                </View>
-
-                <Button
-                  title="Add set"
-                  icon="add"
-                  variant="secondary"
-                  onPress={() => addSet(we)}
-                  style={styles.addSet}
+              </View>
+              <View
+                style={styles.progressTrack}
+                accessibilityRole="progressbar"
+                accessibilityLabel="Sets done"
+                accessibilityValue={{ min: 0, max: allSets.length, now: completedSets.length }}
+              >
+                <Animated.View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${Math.round(progress * 100)}%`,
+                      transitionProperty: 'width',
+                      transitionDuration: 250,
+                      transitionTimingFunction: easeOut,
+                    },
+                  ]}
                 />
+              </View>
+            </Card>
+
+            {workout.notes ? (
+              <Card>
+                <Text style={t.body}>{workout.notes}</Text>
               </Card>
-            );
-          })}
+            ) : null}
 
-          <Text style={[t.caption, styles.hint]}>
-            Tap a set number to switch warmup, drop or failure. Long-press it to delete the set.
-          </Text>
+            {(workout.exercises ?? []).length === 0 ? (
+              <Card>
+                <Text style={t.muted}>This workout has no exercises.</Text>
+              </Card>
+            ) : null}
 
-          <Button title="Delete workout" variant="danger" onPress={remove} />
+            {(workout.exercises ?? []).map((we) => {
+              const exerciseType = we.exercise?.exercise_type ?? 'weight_reps';
+              const detail = [we.exercise?.muscle_group?.name, we.exercise?.equipment?.name].filter(Boolean).join(' · ');
+              return (
+                <Card key={we.id} style={styles.exercise}>
+                  <View style={styles.exerciseHead}>
+                    <Text style={t.heading} accessibilityRole="header">
+                      {we.exercise?.name ?? 'Exercise'}
+                    </Text>
+                    {detail ? <Text style={t.caption}>{detail}</Text> : null}
+                    {we.notes ? <Text style={t.muted}>{we.notes}</Text> : null}
+                  </View>
+
+                  <View style={styles.columns}>
+                    <Text style={[t.column, styles.setColumn]}>Set</Text>
+                    {setFieldsFor(exerciseType).map(({ field, label }) => (
+                      <Text key={field} style={[t.column, styles.fieldColumn]}>
+                        {label}
+                      </Text>
+                    ))}
+                    <Text style={[t.column, styles.tickColumn]}>Done</Text>
+                  </View>
+
+                  <View style={styles.sets}>
+                    {(we.sets ?? []).map((set, index, sets) => (
+                      <SetRow
+                        key={set.id}
+                        set={set}
+                        exerciseType={exerciseType}
+                        isCurrent={set.id === currentSetId}
+                        hints={index > 0 ? sets[index - 1] : {}}
+                        onSave={(changes) => saveSet(we, set, changes)}
+                        onDelete={() => deleteSet(we, set)}
+                        onRemove={() => void removeSet(we, set)}
+                      />
+                    ))}
+                  </View>
+
+                  <Button
+                    title="Add set"
+                    icon="add"
+                    variant="secondary"
+                    onPress={() => addSet(we)}
+                    style={styles.addSet}
+                  />
+                </Card>
+              );
+            })}
+
+            <Text style={[t.caption, styles.hint]}>
+              Tap a set number to switch warmup, drop or failure. Swipe a set left to delete it.
+            </Text>
+
+            <Button title="Delete workout" variant="danger" onPress={remove} />
+          </LayoutAnimationConfig>
         </ScrollView>
       </KeyboardAvoidingView>
 
