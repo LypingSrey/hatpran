@@ -1,20 +1,33 @@
-import { Stack } from 'expo-router';
+import {
+  AtkinsonHyperlegibleNext_400Regular,
+  AtkinsonHyperlegibleNext_500Medium,
+  AtkinsonHyperlegibleNext_600SemiBold,
+  AtkinsonHyperlegibleNext_700Bold,
+  useFonts,
+} from '@expo-google-fonts/atkinson-hyperlegible-next';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text } from 'react-native';
+import { useMemo } from 'react';
+import { Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-import { Button, Loading, text } from '@/components/ui';
+import { Button, Loading, useText } from '@/components/ui';
+import { AppearanceProvider, useAppearance } from '@/lib/appearanceContext';
 import { AuthProvider, useAuth } from '@/lib/auth';
-import { colors, spacing } from '@/lib/theme';
+import { fonts, makeStyles, spacing, type, useColors, useScheme } from '@/lib/theme';
 
 /** Shown when a saved sign-in couldn't be checked on launch, e.g. no signal at the gym. */
 function CantConnect({ message }: { message: string }) {
   const { retryRestore, signOut } = useAuth();
+  const styles = useStyles();
+  const t = useText();
   return (
     <SafeAreaView style={styles.cantConnect}>
-      <Text style={text.title}>Can’t connect to HatPran</Text>
-      <Text style={[text.body, styles.center]}>You’re still signed in. Check your connection and try again.</Text>
-      <Text style={[text.muted, styles.center]}>{message}</Text>
+      <View style={styles.cantConnectText}>
+        <Text style={t.title}>Can’t connect to HatPran</Text>
+        <Text style={[t.body, styles.center]}>You’re still signed in. Check your connection and try again.</Text>
+        <Text style={[t.caption, styles.center]}>{message}</Text>
+      </View>
       <Button title="Try again" onPress={() => void retryRestore()} style={styles.stretch} />
       <Button title="Log out" variant="ghost" onPress={() => void signOut()} />
     </SafeAreaView>
@@ -23,6 +36,7 @@ function CantConnect({ message }: { message: string }) {
 
 function RootNavigator() {
   const { user, isLoading, restoreError } = useAuth();
+  const c = useColors();
 
   if (isLoading) {
     return <Loading />;
@@ -37,9 +51,12 @@ function RootNavigator() {
   return (
     <Stack
       screenOptions={{
-        headerTintColor: colors.primary,
-        headerTitleStyle: { color: colors.text },
-        contentStyle: { backgroundColor: colors.background },
+        headerTintColor: c.accent,
+        headerTitleStyle: { fontFamily: fonts.semibold, fontSize: 17, color: c.text },
+        headerBackTitleStyle: { fontFamily: fonts.regular },
+        headerStyle: { backgroundColor: c.background },
+        headerShadowVisible: false,
+        contentStyle: { backgroundColor: c.background },
       }}
     >
       <Stack.Protected guard={!isSignedIn}>
@@ -58,6 +75,7 @@ function RootNavigator() {
         <Stack.Screen name="workout/edit/[id]" options={{ title: 'Edit workout', presentation: 'modal' }} />
         <Stack.Screen name="profile/edit" options={{ title: 'Edit profile', presentation: 'modal' }} />
         <Stack.Screen name="record/manual" options={{ title: 'Record', presentation: 'modal' }} />
+        <Stack.Screen name="records/[group]" options={{ title: 'Records' }} />
       </Stack.Protected>
     </Stack>
   );
@@ -65,24 +83,74 @@ function RootNavigator() {
 
 export default function RootLayout() {
   return (
+    <AppearanceProvider>
+      <ThemedRoot />
+    </AppearanceProvider>
+  );
+}
+
+function ThemedRoot() {
+  const scheme = useScheme();
+  const { ready: appearanceReady } = useAppearance();
+  const c = useColors();
+  const [fontsLoaded, fontError] = useFonts({
+    AtkinsonHyperlegibleNext_400Regular,
+    AtkinsonHyperlegibleNext_500Medium,
+    AtkinsonHyperlegibleNext_600SemiBold,
+    AtkinsonHyperlegibleNext_700Bold,
+  });
+
+  // Navigation chrome (headers, tab bar, backgrounds) follows the log-page palette in both appearances.
+  const navigationTheme = useMemo(() => {
+    const base = scheme === 'dark' ? DarkTheme : DefaultTheme;
+    return {
+      ...base,
+      colors: {
+        ...base.colors,
+        primary: c.accent,
+        background: c.background,
+        card: c.background,
+        text: c.text,
+        border: c.rule,
+        notification: c.danger,
+      },
+      fonts: {
+        regular: { fontFamily: fonts.regular, fontWeight: '400' as const },
+        medium: { fontFamily: fonts.medium, fontWeight: '500' as const },
+        bold: { fontFamily: fonts.semibold, fontWeight: '600' as const },
+        heavy: { fontFamily: fonts.bold, fontWeight: '700' as const },
+      },
+    };
+  }, [scheme, c]);
+
+  // Hold the first frame until the face and the saved appearance are ready (a failed font falls back to the system face).
+  if ((!fontsLoaded && !fontError) || !appearanceReady) {
+    return <View style={{ flex: 1, backgroundColor: c.background }} />;
+  }
+
+  return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <StatusBar style="dark" />
-        <RootNavigator />
-      </AuthProvider>
+      <ThemeProvider value={navigationTheme}>
+        <AuthProvider>
+          <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
+          <RootNavigator />
+        </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   cantConnect: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.md,
     padding: spacing.xl,
-    backgroundColor: colors.background,
+    backgroundColor: c.background,
   },
+  cantConnectText: { alignItems: 'center', gap: spacing.sm, marginBottom: spacing.lg },
   center: { textAlign: 'center' },
-  stretch: { alignSelf: 'stretch', marginTop: spacing.sm },
-});
+  stretch: { alignSelf: 'stretch' },
+  caption: { ...type.caption },
+}));

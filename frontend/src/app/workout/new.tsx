@@ -1,13 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Fragment, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { ExercisePicker } from '@/components/ExercisePicker';
 import { Stepper } from '@/components/Stepper';
-import { Button, Card, ErrorBanner, Field, text } from '@/components/ui';
+import { Button, Card, ErrorBanner, Field, Rule, Section, useText } from '@/components/ui';
 import { api } from '@/lib/api';
-import { colors, spacing } from '@/lib/theme';
+import { makeStyles, spacing, useColors } from '@/lib/theme';
 import type { Exercise } from '@/lib/types';
 import { errorMessage } from '@/lib/useApi';
 
@@ -29,6 +29,9 @@ export default function NewWorkoutScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const styles = useStyles();
+  const t = useText();
+  const c = useColors();
 
   const start = async () => {
     setSubmitting(true);
@@ -54,35 +57,43 @@ export default function NewWorkoutScreen() {
     );
 
   return (
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.screen} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
       {error ? <ErrorBanner message={error} /> : null}
       <Field label="Workout name" value={name} onChangeText={setName} />
 
-      <Text style={text.heading}>Exercises</Text>
-      {entries.length === 0 ? (
-        <Text style={text.muted}>Add the exercises you plan to do. You can add more sets as you go.</Text>
-      ) : null}
+      <Section title="Exercises" style={styles.section}>
+        {entries.length === 0 ? (
+          <Text style={t.muted}>Add the exercises you plan to do. You can add more sets as you go.</Text>
+        ) : (
+          <Card flush>
+            {entries.map((entry, index) => (
+              <Fragment key={entry.exercise.id}>
+                {index > 0 ? <Rule /> : null}
+                <View style={styles.entry}>
+                  <View style={styles.entryText}>
+                    <Text style={t.body}>{entry.exercise.name}</Text>
+                    <Text style={t.caption}>
+                      {entry.sets} set{entry.sets === 1 ? '' : 's'}
+                    </Text>
+                  </View>
+                  <Stepper label="sets" onMinus={() => changeSets(index, -1)} onPlus={() => changeSets(index, 1)} />
+                  <Pressable
+                    onPress={() => setEntries((current) => current.filter((_, i) => i !== index))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${entry.exercise.name}`}
+                    style={styles.remove}
+                  >
+                    <Ionicons name="close" size={22} color={c.textMuted} />
+                  </Pressable>
+                </View>
+              </Fragment>
+            ))}
+          </Card>
+        )}
+        <Button title="Add exercises" icon="add" variant="secondary" onPress={() => setPickerOpen(true)} />
+      </Section>
 
-      {entries.map((entry, index) => (
-        <Card key={entry.exercise.id} style={styles.entry}>
-          <View style={{ flex: 1 }}>
-            <Text style={text.body}>{entry.exercise.name}</Text>
-            <Text style={text.muted}>{entry.sets} sets</Text>
-          </View>
-          <Stepper label="sets" onMinus={() => changeSets(index, -1)} onPlus={() => changeSets(index, 1)} />
-          <Pressable
-            onPress={() => setEntries((current) => current.filter((_, i) => i !== index))}
-            accessibilityRole="button"
-            accessibilityLabel={`Remove ${entry.exercise.name}`}
-            hitSlop={8}
-          >
-            <Ionicons name="close-circle" size={24} color={colors.textMuted} />
-          </Pressable>
-        </Card>
-      ))}
-
-      <Button title="+ Add exercises" variant="secondary" onPress={() => setPickerOpen(true)} />
-      <Button title="Start workout" onPress={start} loading={submitting} />
+      <Button title="Start workout" onPress={start} loading={submitting} style={styles.start} />
 
       <ExercisePicker
         visible={pickerOpen}
@@ -97,7 +108,12 @@ export default function NewWorkoutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md },
-  entry: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-});
+const useStyles = makeStyles((c) => ({
+  screen: { backgroundColor: c.background },
+  page: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: spacing.xxxl, gap: spacing.lg },
+  section: { marginTop: spacing.xl },
+  entry: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 68, paddingVertical: spacing.sm, paddingLeft: spacing.lg, paddingRight: spacing.sm },
+  entryText: { flex: 1, gap: 2 },
+  remove: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  start: { marginTop: spacing.xl },
+}));

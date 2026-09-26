@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 
 import { Button, ErrorBanner, Field } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { spacing } from '@/lib/theme';
+import { makeStyles, spacing } from '@/lib/theme';
 
 export default function RegisterScreen() {
   const { signUp } = useAuth();
@@ -14,6 +14,7 @@ export default function RegisterScreen() {
   const [confirmation, setConfirmation] = useState('');
   const [error, setError] = useState<ApiError | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const styles = useStyles();
 
   const submit = async () => {
     setSubmitting(true);
@@ -29,7 +30,7 @@ export default function RegisterScreen() {
   const hasFieldErrors = error && Object.keys(error.errors).length > 0;
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         {error && !hasFieldErrors ? <ErrorBanner message={error.message} /> : null}
 
@@ -73,6 +74,7 @@ export default function RegisterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: spacing.xl, gap: spacing.lg },
-});
+const useStyles = makeStyles((c) => ({
+  flex: { flex: 1, backgroundColor: c.background },
+  container: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl, paddingBottom: spacing.xxxl, gap: spacing.xl },
+}));

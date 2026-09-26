@@ -1,13 +1,14 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
-import { Button, Card, ErrorBanner, Field, text } from '@/components/ui';
+import { Button, Card, ErrorBanner, Field, Section, useText } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { avatarForm, CameraPermissionError, pickAvatar, type AvatarSource } from '@/lib/avatar';
 import { confirm } from '@/lib/dialogs';
-import { colors, spacing } from '@/lib/theme';
+import { makeStyles, spacing, type, useColors } from '@/lib/theme';
 
 function asApiError(e: unknown): ApiError {
   return e instanceof ApiError ? e : new ApiError('Something went wrong.', 0);
@@ -32,6 +33,8 @@ export default function EditProfileScreen() {
 
   const [pictureBusy, setPictureBusy] = useState<AvatarSource | 'remove' | null>(null);
   const [pictureError, setPictureError] = useState<string | null>(null);
+  const styles = useStyles();
+  const t = useText();
 
   if (!user) return null;
 
@@ -113,9 +116,9 @@ export default function EditProfileScreen() {
   const hasFieldErrors = (error: ApiError | null) => error && Object.keys(error.errors).length > 0;
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <Card style={[styles.section, { alignItems: 'center' }]}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
+      <ScrollView style={styles.screen} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <Card style={styles.picture}>
           <Avatar user={user} size={112} />
           {pictureError ? <Text style={styles.error}>{pictureError}</Text> : null}
           <View style={styles.pictureButtons}>
@@ -125,7 +128,7 @@ export default function EditProfileScreen() {
               onPress={() => changePicture('library')}
               loading={pictureBusy === 'library'}
               disabled={pictureBusy !== null}
-              style={{ flex: 1 }}
+              style={styles.flex}
             />
             <Button
               title="Take photo"
@@ -133,7 +136,7 @@ export default function EditProfileScreen() {
               onPress={() => changePicture('camera')}
               loading={pictureBusy === 'camera'}
               disabled={pictureBusy !== null}
-              style={{ flex: 1 }}
+              style={styles.flex}
             />
           </View>
           {user.avatar_url ? (
@@ -147,99 +150,119 @@ export default function EditProfileScreen() {
           ) : null}
         </Card>
 
-        <Card style={styles.section}>
-          <Text style={text.heading}>Details</Text>
-          {detailsError && !hasFieldErrors(detailsError) ? <ErrorBanner message={detailsError.message} /> : null}
-          <Field
-            label="Name"
-            value={name}
-            onChangeText={(v) => {
-              setName(v);
-              setDetailsSaved(false);
-            }}
-            autoComplete="name"
-            error={detailsError?.field('name')}
-          />
-          <Field
-            label="Email"
-            value={email}
-            onChangeText={(v) => {
-              setEmail(v);
-              setDetailsSaved(false);
-            }}
-            autoCapitalize="none"
-            autoComplete="email"
-            keyboardType="email-address"
-            error={detailsError?.field('email')}
-          />
-          {emailChanged ? (
+        <Section title="Details" style={styles.section}>
+          <Card style={styles.card}>
+            {detailsError && !hasFieldErrors(detailsError) ? <ErrorBanner message={detailsError.message} /> : null}
             <Field
-              label="Current password (needed to change your email)"
-              value={emailPassword}
-              onChangeText={setEmailPassword}
+              label="Name"
+              value={name}
+              onChangeText={(v) => {
+                setName(v);
+                setDetailsSaved(false);
+              }}
+              autoComplete="name"
+              error={detailsError?.field('name')}
+            />
+            <Field
+              label="Email"
+              value={email}
+              onChangeText={(v) => {
+                setEmail(v);
+                setDetailsSaved(false);
+              }}
+              autoCapitalize="none"
+              autoComplete="email"
+              keyboardType="email-address"
+              error={detailsError?.field('email')}
+            />
+            {emailChanged ? (
+              <Field
+                label="Current password (needed to change your email)"
+                value={emailPassword}
+                onChangeText={setEmailPassword}
+                secureTextEntry
+                autoComplete="current-password"
+                textContentType="password"
+                error={detailsError?.field('current_password')}
+              />
+            ) : null}
+            {detailsSaved ? <Saved message="Profile saved." /> : null}
+            <Button
+              title="Save details"
+              onPress={saveDetails}
+              loading={savingDetails}
+              disabled={!detailsChanged || !name.trim() || !email.trim() || (emailChanged && !emailPassword)}
+            />
+          </Card>
+        </Section>
+
+        <Section title="Change password" style={styles.section}>
+          <Card style={styles.card}>
+            <Text style={t.caption}>Other devices signed in to your account will be signed out.</Text>
+            {passwordError && !hasFieldErrors(passwordError) ? <ErrorBanner message={passwordError.message} /> : null}
+            <Field
+              label="Current password"
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
               secureTextEntry
               autoComplete="current-password"
               textContentType="password"
-              error={detailsError?.field('current_password')}
+              error={passwordError?.field('current_password')}
             />
-          ) : null}
-          {detailsSaved ? <Text style={styles.saved}>Profile saved.</Text> : null}
-          <Button
-            title="Save details"
-            onPress={saveDetails}
-            loading={savingDetails}
-            disabled={!detailsChanged || !name.trim() || !email.trim() || (emailChanged && !emailPassword)}
-          />
-        </Card>
+            <Field
+              label="New password (min. 8 characters)"
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
+              autoComplete="new-password"
+              textContentType="newPassword"
+              error={passwordError?.field('password')}
+            />
+            <Field
+              label="Confirm new password"
+              value={confirmation}
+              onChangeText={setConfirmation}
+              secureTextEntry
+              autoComplete="new-password"
+              textContentType="newPassword"
+              onSubmitEditing={savePassword}
+            />
+            {passwordSaved ? <Saved message="Password changed." /> : null}
+            <Button
+              title="Change password"
+              onPress={savePassword}
+              loading={savingPassword}
+              disabled={!currentPassword || !newPassword || !confirmation}
+            />
+          </Card>
+        </Section>
 
-        <Card style={styles.section}>
-          <Text style={text.heading}>Change password</Text>
-          <Text style={text.muted}>Other devices signed in to your account will be signed out.</Text>
-          {passwordError && !hasFieldErrors(passwordError) ? <ErrorBanner message={passwordError.message} /> : null}
-          <Field
-            label="Current password"
-            value={currentPassword}
-            onChangeText={setCurrentPassword}
-            secureTextEntry
-            autoComplete="current-password"
-            textContentType="password"
-            error={passwordError?.field('current_password')}
-          />
-          <Field
-            label="New password (min. 8 characters)"
-            value={newPassword}
-            onChangeText={setNewPassword}
-            secureTextEntry
-            autoComplete="new-password"
-            textContentType="newPassword"
-            error={passwordError?.field('password')}
-          />
-          <Field
-            label="Confirm new password"
-            value={confirmation}
-            onChangeText={setConfirmation}
-            secureTextEntry
-            autoComplete="new-password"
-            textContentType="newPassword"
-            onSubmitEditing={savePassword}
-          />
-          {passwordSaved ? <Text style={styles.saved}>Password changed.</Text> : null}
-          <Button
-            title="Change password"
-            onPress={savePassword}
-            loading={savingPassword}
-            disabled={!currentPassword || !newPassword || !confirmation}
-          />
-        </Card>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl * 2 },
-  section: { gap: spacing.md },
-  saved: { color: colors.success, fontSize: 14, fontWeight: '600' },
-  error: { color: colors.danger, fontSize: 14, textAlign: 'center' },
+/** A confirmation line with a check, so success reads by shape as well as color. */
+function Saved({ message }: { message: string }) {
+  const styles = useStyles();
+  const c = useColors();
+  return (
+    <View style={styles.savedRow} accessibilityRole="alert">
+      <Ionicons name="checkmark-circle" size={18} color={c.accent} />
+      <Text style={styles.saved}>{message}</Text>
+    </View>
+  );
+}
+
+const useStyles = makeStyles((c) => ({
+  flex: { flex: 1 },
+  screen: { backgroundColor: c.background },
+  container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: spacing.xxxl, gap: spacing.xl },
+  picture: { alignItems: 'center', gap: spacing.md },
+  section: { marginTop: spacing.lg },
+  card: { gap: spacing.lg },
+  savedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  saved: { ...type.label, color: c.accent },
+  error: { ...type.label, color: c.danger, textAlign: 'center' },
   pictureButtons: { flexDirection: 'row', gap: spacing.sm, alignSelf: 'stretch' },
-});
+}));

@@ -29,6 +29,20 @@ class PersonalRecordControllerTest extends TestCase
             ->assertJsonPath('data.1.id', $older->id);
     }
 
+    public function test_index_includes_each_records_exercise_muscle_group(): void
+    {
+        $user = User::factory()->create();
+        $exercise = Exercise::factory()->create();
+        PersonalRecord::factory()->for($user)->for($exercise)->maxWeight()->create();
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/personal-records')
+            ->assertOk()
+            ->assertJsonPath('data.0.exercise.muscle_group.id', $exercise->muscle_group_id)
+            ->assertJsonPath('data.0.exercise.muscle_group.name', $exercise->muscleGroup->name);
+    }
+
     public function test_index_filters_by_exercise_and_record_type(): void
     {
         $user = User::factory()->create();

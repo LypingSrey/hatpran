@@ -1,19 +1,15 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, Text, TextInput, View } from 'react-native';
 
 import type { SetInput } from '@/lib/api';
 import { setFieldsFor, type SetField } from '@/lib/format';
-import { colors, radius, spacing } from '@/lib/theme';
+import { tickHaptic, useReduceMotion } from '@/lib/motion';
+import { makeStyles, radius, spacing, type, useColors } from '@/lib/theme';
 import type { ExerciseSet, ExerciseType, SetType } from '@/lib/types';
 
 const setTypeOrder: SetType[] = ['normal', 'warmup', 'drop', 'failure'];
-const setTypeBadge: Record<SetType, { label: string; color: string }> = {
-  normal: { label: '', color: colors.text },
-  warmup: { label: 'W', color: colors.gold },
-  drop: { label: 'D', color: colors.primary },
-  failure: { label: 'F', color: colors.danger },
-};
+const setTypeLetter: Record<SetType, string> = { normal: '', warmup: 'W', drop: 'D', failure: 'F' };
 
 type Drafts = Record<SetField, string>;
 
@@ -34,23 +30,37 @@ function parse(field: SetField, raw: string): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
-/** One editable set line inside a workout. Saves on blur and when ticked. */
+/**
+ * One line of the log: set number in the left margin, the numbers written on the line, a tick in the right
+ * margin. `isCurrent` circles the set number in ballpoint blue. Saves on blur and when ticked.
+ */
 export function SetRow({
   set,
   exerciseType,
+  isCurrent = false,
+  hints = {},
   onSave,
   onDelete,
 }: {
   set: ExerciseSet;
   exerciseType: ExerciseType;
+  isCurrent?: boolean;
+  /** The previous set's values, shown in empty fields and saved as-is when an empty set is ticked. */
+  hints?: Partial<Record<SetField, number | null>>;
   onSave: (changes: SetInput) => Promise<void>;
   onDelete: () => void;
 }) {
+  const styles = useStyles();
+  const c = useColors();
+  const reduceMotion = useReduceMotion();
   const fields = setFieldsFor(exerciseType);
   const [drafts, setDrafts] = useState<Drafts>(() => toDrafts(set));
   const [syncedSet, setSyncedSet] = useState(set);
   const [focusedField, setFocusedField] = useState<SetField | null>(null);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const [tickScale] = useState(() => new Animated.Value(1));
+  const [tickFill] = useState(() => new Animated.Value(set.is_completed ? 1 : 0));
+  const wasCompleted = useRef(set.is_completed);
 
   // Take server values when the set changes underneath us (e.g. after a save),
   // but never overwrite the field the user is typing into.
@@ -59,6 +69,28 @@ export function SetRow({
     const server = toDrafts(set);
     setDrafts((current) => (focusedField ? { ...server, [focusedField]: current[focusedField] } : server));
   }
+
+  // The signature moment: the tick fills green and settles into place as the set is marked done.
+  // The fill is a color change, so it runs even with Reduce Motion; the settle does not.
+  useEffect(() => {
+    if (set.is_completed === wasCompleted.current) return;
+    Animated.timing(tickFill, {
+      toValue: set.is_completed ? 1 : 0,
+      duration: 160,
+      easing: Easing.out(Easing.exp),
+      useNativeDriver: false,
+    }).start();
+    if (set.is_completed && !reduceMotion) {
+      tickScale.setValue(0.8);
+      Animated.timing(tickScale, {
+        toValue: 1,
+        duration: 160,
+        easing: Easing.out(Easing.exp),
+        useNativeDriver: true,
+      }).start();
+    }
+    wasCompleted.current = set.is_completed;
+  }, [set.is_completed, reduceMotion, tickScale, tickFill]);
 
   // Run saves one at a time so an older response can't land after a newer one.
   const save = (changes: SetInput) => {
@@ -79,18 +111,42 @@ export function SetRow({
     save({ set_type: next });
   };
 
-  const badge = setTypeBadge[set.set_type];
+  const toggleDone = () => {
+    if (set.is_completed) {
+      save({ ...values(), is_completed: false });
+      return;
+    }
+    tickHaptic();
+    // An empty field takes the previous set's value, so a repeat set is one tap.
+    const withHints = Object.fromEntries(
+      fields.map(({ field }) => [field, parse(field, drafts[field]) ?? hints[field] ?? null]),
+    ) as SetInput;
+    save({ ...withHints, is_completed: true });
+  };
+
+  const letter = setTypeLetter[set.set_type];
+  const done = set.is_completed;
 
   return (
-    <View style={[styles.row, set.is_completed && styles.rowCompleted]}>
+    <View style={[styles.row, done && styles.rowDone]}>
       <Pressable
         onPress={cycleType}
         onLongPress={onDelete}
-        style={styles.setNumber}
+        style={[styles.setNumber, isCurrent && !done && styles.setNumberCurrent]}
         accessibilityRole="button"
-        accessibilityLabel={`Set ${set.set_number}, ${set.set_type}. Tap to change type, long press to delete.`}
+        accessibilityLabel={`Set ${set.set_number}, ${set.set_type}${isCurrent ? ', up next' : ''}. Tap to change type, long press to delete.`}
       >
-        <Text style={[styles.setNumberText, { color: badge.color }]}>{badge.label || set.set_number}</Text>
+        <Text
+          style={[
+            styles.setNumberText,
+            letter ? styles.setTypeLetter : null,
+            set.set_type === 'failure' && styles.failureLetter,
+            isCurrent && !done && styles.setNumberTextCurrent,
+            done && styles.setNumberTextDone,
+          ]}
+        >
+          {letter || set.set_number}
+        </Text>
       </Pressable>
 
       {fields.map(({ field, label }) => (
@@ -103,56 +159,91 @@ export function SetRow({
             setFocusedField(null);
             saveIfDirty();
           }}
-          placeholder={label}
-          placeholderTextColor={colors.textMuted}
+          placeholder={hints[field] != null ? String(hints[field]) : '–'}
+          placeholderTextColor={c.textMuted}
+          selectionColor={c.accent}
+          cursorColor={c.accent}
           keyboardType={field === 'weight_kg' ? 'decimal-pad' : 'number-pad'}
           selectTextOnFocus
-          style={styles.input}
+          style={[styles.input, focusedField === field && styles.inputFocused, done && styles.inputDone]}
           accessibilityLabel={`Set ${set.set_number} ${label}`}
         />
       ))}
 
       <Pressable
-        onPress={() => save({ ...values(), is_completed: !set.is_completed })}
-        style={[styles.check, set.is_completed && styles.checkDone]}
+        onPress={toggleDone}
+        style={styles.tickTarget}
+        hitSlop={4}
         accessibilityRole="checkbox"
-        accessibilityState={{ checked: set.is_completed }}
-        accessibilityLabel={`Mark set ${set.set_number} ${set.is_completed ? 'not done' : 'done'}`}
+        accessibilityState={{ checked: done }}
+        accessibilityLabel={`Mark set ${set.set_number} ${done ? 'not done' : 'done'}`}
       >
-        <Ionicons name="checkmark" size={20} color={set.is_completed ? colors.onPrimary : colors.textMuted} />
+        <Animated.View style={{ transform: [{ scale: tickScale }] }}>
+          <Animated.View
+            style={[
+              styles.tick,
+              {
+                backgroundColor: tickFill.interpolate({ inputRange: [0, 1], outputRange: [c.surface, c.success] }),
+                borderColor: tickFill.interpolate({ inputRange: [0, 1], outputRange: [c.ruleStrong, c.success] }),
+              },
+            ]}
+          >
+            <Animated.View style={{ opacity: tickFill }}>
+              <Ionicons name="checkmark" size={20} color={c.onSuccess} />
+            </Animated.View>
+          </Animated.View>
+        </Animated.View>
       </Pressable>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles((c) => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.xs,
-    borderRadius: radius.sm,
+    minHeight: 56,
+    padding: spacing.xs + 2,
+    borderRadius: radius.lg,
   },
-  rowCompleted: { backgroundColor: colors.successMuted },
-  setNumber: { width: 36, height: 40, alignItems: 'center', justifyContent: 'center' },
-  setNumberText: { fontSize: 16, fontWeight: '700' },
-  input: {
-    flex: 1,
-    height: 40,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceMuted,
-    textAlign: 'center',
-    fontSize: 16,
-    color: colors.text,
-  },
-  check: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceMuted,
+  rowDone: { backgroundColor: c.successSoft },
+  setNumber: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.round,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkDone: { backgroundColor: colors.success },
-});
+  setNumberCurrent: { borderWidth: 2, borderColor: c.accent, backgroundColor: c.accentSoft },
+  setNumberText: { ...type.numeral, fontSize: 16, lineHeight: 20, color: c.textMuted },
+  setNumberTextCurrent: { color: c.accent, fontFamily: type.figure.fontFamily },
+  setNumberTextDone: { color: c.successText },
+  setTypeLetter: { color: c.record },
+  failureLetter: { color: c.danger },
+  input: {
+    ...type.numeral,
+    flex: 1,
+    minWidth: 0,
+    height: 44,
+    paddingVertical: 0,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    backgroundColor: c.surfaceMuted,
+    textAlign: 'center',
+    color: c.text,
+  },
+  inputFocused: { borderColor: c.accent, backgroundColor: c.surface },
+  inputDone: { backgroundColor: 'transparent' },
+  tickTarget: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  tick: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.round,
+    borderWidth: 2,
+    borderColor: c.ruleStrong,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+}));

@@ -1,12 +1,12 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 
 import { DateField } from '@/components/DateField';
-import { Button, ErrorBanner, Field, Loading, text } from '@/components/ui';
+import { Button, ErrorBanner, Field, Loading, useText } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { parseDateTimeInput, toDateInput, toTimeInput } from '@/lib/format';
-import { spacing } from '@/lib/theme';
+import { makeStyles, spacing } from '@/lib/theme';
 import type { Workout } from '@/lib/types';
 import { errorMessage } from '@/lib/useApi';
 
@@ -25,6 +25,8 @@ export default function EditWorkoutScreen() {
   const [localErrors, setLocalErrors] = useState<{ date?: string; time?: string; minutes?: string }>({});
   const [error, setError] = useState<ApiError | null>(null);
   const [saving, setSaving] = useState(false);
+  const styles = useStyles();
+  const t = useText();
 
   // Load once; refetching on focus would overwrite what the user is typing.
   useEffect(() => {
@@ -102,7 +104,7 @@ export default function EditWorkoutScreen() {
   const serverTimeError = error?.field('started_at') ?? error?.field('completed_at');
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         {error && !serverTimeError && !error.field('name') ? <ErrorBanner message={error.message} /> : null}
 
@@ -113,15 +115,17 @@ export default function EditWorkoutScreen() {
           onChangeText={setNotes}
           placeholder="How did it go?"
           multiline
-          style={{ minHeight: 96, paddingTop: spacing.md, textAlignVertical: 'top' }}
+          style={styles.notes}
         />
 
         {workout.is_completed ? (
           <>
-            <Text style={[text.heading, { marginTop: spacing.sm }]}>When</Text>
+            <Text style={[t.heading, styles.when]} accessibilityRole="header">
+              When
+            </Text>
             <DateField label="Date" value={date} onChange={setDate} error={localErrors.date} />
             <View style={styles.row}>
-              <View style={{ flex: 1 }}>
+              <View style={styles.flex}>
                 <Field
                   label="Start time"
                   value={time}
@@ -132,7 +136,7 @@ export default function EditWorkoutScreen() {
                   error={localErrors.time ?? serverTimeError}
                 />
               </View>
-              <View style={{ flex: 1 }}>
+              <View style={styles.flex}>
                 <Field
                   label="Duration (minutes)"
                   value={minutes}
@@ -143,17 +147,28 @@ export default function EditWorkoutScreen() {
                 />
               </View>
             </View>
-            <Text style={text.muted}>Changing when a workout happened also updates the dates on its records.</Text>
+            <Text style={t.caption}>Changing when a workout happened also updates the dates on its records.</Text>
           </>
         ) : null}
 
-        <Button title="Save" onPress={save} loading={saving} />
+        <Button title="Save" onPress={save} loading={saving} style={styles.save} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl * 2 },
-  row: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
-});
+const useStyles = makeStyles((c) => ({
+  flex: { flex: 1 },
+  container: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxxl,
+    gap: spacing.xl,
+    backgroundColor: c.background,
+    flexGrow: 1,
+  },
+  notes: { minHeight: 96, paddingTop: spacing.sm, textAlignVertical: 'top' },
+  when: { marginTop: spacing.lg },
+  row: { flexDirection: 'row', gap: spacing.lg, alignItems: 'flex-start' },
+  save: { marginTop: spacing.lg },
+}));
