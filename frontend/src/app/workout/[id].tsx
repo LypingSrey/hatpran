@@ -110,14 +110,15 @@ export default function WorkoutScreen() {
     }
   };
 
-  // Take the set off at once; if the delete fails, put it back in its place.
+  // Take the set off at once and number the rest 1, 2, 3 as the server will; if the delete fails, put it back.
   const removeSet = async (we: WorkoutExercise, set: ExerciseSet) => {
     const index = (we.sets ?? []).findIndex((s) => s.id === set.id);
-    replaceSets(we.id, (sets) => sets.filter((s) => s.id !== set.id));
+    const renumber = (sets: ExerciseSet[]) => sets.map((s, i) => ({ ...s, set_number: i + 1 }));
+    replaceSets(we.id, (sets) => renumber(sets.filter((s) => s.id !== set.id)));
     try {
       await api.deleteSet(set.id);
     } catch (e) {
-      replaceSets(we.id, (sets) => [...sets.slice(0, index), set, ...sets.slice(index)]);
+      replaceSets(we.id, (sets) => renumber([...sets.slice(0, index), set, ...sets.slice(index)]));
       showError(e);
     }
   };
