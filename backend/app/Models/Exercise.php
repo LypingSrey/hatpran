@@ -66,6 +66,16 @@ class Exercise extends Model
         };
     }
 
+    /**
+     * Exercise types whose weight is assistance rather than load, so it adds no volume.
+     */
+    public const ASSISTED_TYPES = ['assisted_bodyweight'];
+
+    public function countsTowardVolume(): bool
+    {
+        return ! in_array($this->exercise_type, self::ASSISTED_TYPES, true);
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

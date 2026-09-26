@@ -12,9 +12,9 @@ use App\Http\Controllers\Api\WorkoutController;
 use App\Http\Controllers\Api\WorkoutTemplateController;
 use Illuminate\Support\Facades\Route;
 
-// Authentication routes
-Route::post('register', [AuthController::class, 'register']);
-Route::post('login', [AuthController::class, 'login']);
+// Authentication routes (throttled against password guessing and sign-up spam)
+Route::post('register', [AuthController::class, 'register'])->middleware('throttle:6,1');
+Route::post('login', [AuthController::class, 'login'])->middleware('throttle:login');
 
 Route::middleware('auth:sanctum')->group(function () {
     // Auth
