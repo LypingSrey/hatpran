@@ -1,12 +1,13 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Fragment } from 'react';
+import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { RecordRow } from '@/components/RecordRow';
-import { Button, Card, ErrorBanner, Loading, text } from '@/components/ui';
+import { Button, Card, ErrorBanner, Loading, Rule, Section, useText } from '@/components/ui';
 import { api } from '@/lib/api';
 import { exerciseTypeLabels, formatDate, formatRecordValue, recordLabels } from '@/lib/format';
-import { colors, spacing } from '@/lib/theme';
+import { makeStyles, spacing, type, useColors } from '@/lib/theme';
 import { errorMessage, useApi } from '@/lib/useApi';
 
 export default function ExerciseScreen() {
@@ -15,10 +16,19 @@ export default function ExerciseScreen() {
   const exercise = useApi(() => api.exercise(exerciseId), [exerciseId]);
   const records = useApi(() => api.exerciseRecords(exerciseId), [exerciseId]);
   const manual = useApi(() => api.manualRecords({ exercise_id: exerciseId }), [exerciseId]);
+  const styles = useStyles();
+  const t = useText();
+  const c = useColors();
 
   const item = exercise.data?.data;
   if (exercise.isLoading && !item) return <Loading />;
-  if (!item) return <ErrorBanner message={exercise.error ?? 'Exercise not found.'} onRetry={exercise.refresh} />;
+  if (!item) {
+    return (
+      <View style={styles.container}>
+        <ErrorBanner message={exercise.error ?? 'Exercise not found.'} onRetry={exercise.refresh} />
+      </View>
+    );
+  }
 
   const remove = () => {
     const doDelete = async () => {
@@ -46,74 +56,86 @@ export default function ExerciseScreen() {
   const manualList = manual.data?.data ?? [];
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
       <Stack.Screen options={{ title: item.name }} />
 
-      <Card style={{ gap: spacing.xs }}>
-        <Text style={text.title}>{item.name}</Text>
-        <Text style={text.muted}>
+      <Card style={styles.intro}>
+        <Text style={t.title}>{item.name}</Text>
+        <Text style={t.muted}>
           {[item.muscle_group?.name, item.equipment?.name, exerciseTypeLabels[item.exercise_type]]
             .filter(Boolean)
             .join(' · ')}
         </Text>
-        {item.description ? <Text style={[text.body, { marginTop: spacing.sm }]}>{item.description}</Text> : null}
-        {item.instructions ? <Text style={[text.body, { marginTop: spacing.sm }]}>{item.instructions}</Text> : null}
+        {item.description ? <Text style={[t.body, styles.paragraph]}>{item.description}</Text> : null}
+        {item.instructions ? <Text style={[t.body, styles.paragraph]}>{item.instructions}</Text> : null}
       </Card>
 
-      <Text style={text.heading}>Your records</Text>
-      {records.error ? <ErrorBanner message={records.error} onRetry={records.refresh} /> : null}
-      <Card style={{ gap: spacing.xs }}>
-        {recordList.length === 0 && !records.isLoading ? (
-          <Text style={text.muted}>No records yet. Finish a workout with this exercise, or add a best you set before.</Text>
-        ) : null}
-        {recordList.map((r) => (
-          <View key={r.id} style={styles.record}>
-            <Ionicons name="trophy" size={20} color={colors.gold} />
-            <View style={{ flex: 1 }}>
+      <Section title="Your records" style={styles.section}>
+        {records.error ? <ErrorBanner message={records.error} onRetry={records.refresh} /> : null}
+        <Card flush>
+          {recordList.length === 0 && !records.isLoading ? (
+            <Text style={[t.muted, styles.emptyLine]}>
+              No records yet. Finish a workout with this exercise, or add a best you set before.
+            </Text>
+          ) : null}
+          {recordList.map((r, index) => (
+            <Fragment key={r.id}>
+              {index > 0 ? <Rule /> : null}
               <RecordRow record={r} />
-            </View>
-          </View>
-        ))}
-      </Card>
+            </Fragment>
+          ))}
+        </Card>
+      </Section>
 
       {manualList.length > 0 ? (
-        <>
-          <Text style={text.heading}>Entered by you</Text>
-          <Text style={text.muted}>Bests you added by hand. A logged set that beats one takes over as the record.</Text>
-          <Card style={{ gap: spacing.xs }}>
-            {manualList.map((m) => (
-              <Pressable
-                key={m.id}
-                onPress={() => router.push({ pathname: '/record/manual', params: { id: m.id } })}
-                accessibilityRole="button"
-                accessibilityHint="Edit this record"
-                style={({ pressed }) => [styles.manual, pressed && { opacity: 0.6 }]}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={text.body}>{recordLabels[m.record_type]}</Text>
-                  <Text style={text.muted}>{formatDate(m.achieved_at)}</Text>
-                </View>
-                <Text style={[text.body, { fontWeight: '700' }]}>{formatRecordValue(m.record_type, m.value)}</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
-              </Pressable>
+        <Section title="Entered by you" style={styles.section}>
+          <Text style={t.caption}>Bests you added by hand. A logged set that beats one takes over as the record.</Text>
+          <Card flush>
+            {manualList.map((m, index) => (
+              <Fragment key={m.id}>
+                {index > 0 ? <Rule /> : null}
+                <Pressable
+                  onPress={() => router.push({ pathname: '/record/manual', params: { id: m.id } })}
+                  accessibilityRole="button"
+                  accessibilityHint="Edit this record"
+                  style={({ pressed }) => [styles.manual, pressed && styles.pressed]}
+                >
+                  <View style={styles.flex}>
+                    <Text style={t.body}>{recordLabels[m.record_type]}</Text>
+                    <Text style={t.caption}>{formatDate(m.achieved_at)}</Text>
+                  </View>
+                  <Text style={styles.value}>{formatRecordValue(m.record_type, m.value)}</Text>
+                  <Ionicons name="chevron-forward" size={18} color={c.textFaint} />
+                </Pressable>
+              </Fragment>
             ))}
           </Card>
-        </>
+        </Section>
       ) : null}
 
-      <Button
-        title="+ Add a past record"
-        variant="secondary"
-        onPress={() => router.push({ pathname: '/record/manual', params: { exerciseId: item.id } })}
-      />
-
-      {item.is_custom ? <Button title="Delete custom exercise" variant="ghost" onPress={remove} /> : null}
+      <View style={styles.actions}>
+        <Button
+          title="Add a past record"
+          icon="add"
+          variant="secondary"
+          onPress={() => router.push({ pathname: '/record/manual', params: { exerciseId: item.id } })}
+        />
+        {item.is_custom ? <Button title="Delete custom exercise" variant="danger" onPress={remove} /> : null}
+      </View>
     </ScrollView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.md },
-  record: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  manual: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xs },
-});
+const useStyles = makeStyles((c) => ({
+  screen: { backgroundColor: c.background },
+  container: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.md },
+  intro: { gap: spacing.xs },
+  paragraph: { marginTop: spacing.sm, color: c.textMuted },
+  section: { marginTop: spacing.xl },
+  emptyLine: { padding: spacing.lg },
+  flex: { flex: 1 },
+  manual: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 60, paddingHorizontal: spacing.lg },
+  pressed: { opacity: 0.6 },
+  value: { ...type.bodyStrong, fontVariant: ['tabular-nums'], color: c.text },
+  actions: { gap: spacing.sm, marginTop: spacing.xl },
+}));

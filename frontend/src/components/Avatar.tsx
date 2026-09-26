@@ -1,17 +1,18 @@
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, Text, View } from 'react-native';
 
-import { colors } from '@/lib/theme';
+import { fonts, makeStyles } from '@/lib/theme';
 import type { User } from '@/lib/types';
 
-/** The user's profile picture, or the first letter of their name on a coloured circle. */
+/** The user's profile picture, or the first letter of their name in ballpoint blue on a pale circle. */
 export function Avatar({ user, size = 72 }: { user: Pick<User, 'name' | 'avatar_url'> | null; size?: number }) {
+  const styles = useStyles();
   const circle = { width: size, height: size, borderRadius: size / 2 };
 
   if (user?.avatar_url) {
     return (
       <Image
         source={{ uri: user.avatar_url }}
-        style={[circle, { backgroundColor: colors.surfaceMuted }]}
+        style={[circle, styles.image]}
         accessibilityLabel={`${user.name}'s profile picture`}
       />
     );
@@ -24,7 +25,8 @@ export function Avatar({ user, size = 72 }: { user: Pick<User, 'name' | 'avatar_
   );
 }
 
-const styles = StyleSheet.create({
-  fallback: { backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  initial: { color: colors.onPrimary, fontWeight: '700' },
-});
+const useStyles = makeStyles((c) => ({
+  image: { backgroundColor: c.surfaceMuted },
+  fallback: { backgroundColor: c.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  initial: { color: c.accent, fontFamily: fonts.bold },
+}));

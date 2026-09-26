@@ -1,11 +1,11 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 
-import { Button, Chip, ErrorBanner, Field, text } from '@/components/ui';
+import { Button, Chip, ErrorBanner, Field, Section } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { exerciseTypeLabels } from '@/lib/format';
-import { spacing } from '@/lib/theme';
+import { makeStyles, spacing } from '@/lib/theme';
 import type { ExerciseType } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
 
@@ -19,6 +19,7 @@ export default function NewExerciseScreen() {
   const [equipmentId, setEquipmentId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+  const styles = useStyles();
 
   const muscleGroups = useApi(() => api.muscleGroups());
   const equipment = useApi(() => api.equipment());
@@ -42,18 +43,18 @@ export default function NewExerciseScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <ScrollView style={styles.screen} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
       {error && !error.field('name') ? <ErrorBanner message={error.message} /> : null}
       <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. Zercher Squat" error={error?.field('name')} />
       <Field label="Description (optional)" value={description} onChangeText={setDescription} multiline />
 
-      <Section title="How is it measured?">
+      <ChoiceGroup title="How is it measured?">
         {exerciseTypes.map((type) => (
           <Chip key={type} label={exerciseTypeLabels[type]} selected={exerciseType === type} onPress={() => setExerciseType(type)} />
         ))}
-      </Section>
+      </ChoiceGroup>
 
-      <Section title="Muscle group">
+      <ChoiceGroup title="Muscle group">
         {(muscleGroups.data?.data ?? []).map((mg) => (
           <Chip
             key={mg.id}
@@ -62,9 +63,9 @@ export default function NewExerciseScreen() {
             onPress={() => setMuscleGroupId(muscleGroupId === mg.id ? null : mg.id)}
           />
         ))}
-      </Section>
+      </ChoiceGroup>
 
-      <Section title="Equipment">
+      <ChoiceGroup title="Equipment">
         {(equipment.data?.data ?? []).map((eq) => (
           <Chip
             key={eq.id}
@@ -73,23 +74,27 @@ export default function NewExerciseScreen() {
             onPress={() => setEquipmentId(equipmentId === eq.id ? null : eq.id)}
           />
         ))}
-      </Section>
+      </ChoiceGroup>
 
-      <Button title="Save exercise" onPress={save} loading={submitting} disabled={!name.trim()} />
+      <Button title="Save exercise" onPress={save} loading={submitting} disabled={!name.trim()} style={styles.save} />
     </ScrollView>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+/** A heading with a wrapping row of choice chips under it. */
+function ChoiceGroup({ title, children }: { title: string; children: React.ReactNode }) {
+  const styles = useStyles();
   return (
-    <View style={{ gap: spacing.sm }}>
-      <Text style={text.heading}>{title}</Text>
+    <Section title={title} style={styles.group}>
       <View style={styles.chips}>{children}</View>
-    </View>
+    </Section>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.lg },
+const useStyles = makeStyles((c) => ({
+  screen: { backgroundColor: c.background },
+  container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: spacing.xxxl, gap: spacing.xl },
+  group: { marginTop: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-});
+  save: { marginTop: spacing.md },
+}));

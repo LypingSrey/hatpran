@@ -1,12 +1,12 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Button, ErrorBanner, Field, text } from '@/components/ui';
+import { Button, ErrorBanner, Field, useText } from '@/components/ui';
 import { ApiError, API_URL } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { colors, spacing } from '@/lib/theme';
+import { makeStyles, spacing, type } from '@/lib/theme';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
@@ -14,6 +14,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<ApiError | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const styles = useStyles();
+  const t = useText();
 
   const submit = async () => {
     setSubmitting(true);
@@ -30,11 +32,11 @@ export default function LoginScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={styles.brand}>
             <Text style={styles.logo}>HatPran</Text>
-            <Text style={text.muted}>Log workouts. Beat your records.</Text>
+            <Text style={t.muted}>Log every set. Beat your records.</Text>
           </View>
 
           {error && !fieldErrors ? <ErrorBanner message={error.message} /> : null}
@@ -64,17 +66,18 @@ export default function LoginScreen() {
 
           <Button title="New here? Create an account" variant="ghost" onPress={() => router.push('/register')} />
 
-          <Text style={[text.muted, styles.server]}>Server: {API_URL}</Text>
+          <Text style={[t.caption, styles.server]}>Server: {API_URL}</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  container: { flexGrow: 1, justifyContent: 'center', padding: spacing.xl, gap: spacing.lg },
-  brand: { alignItems: 'center', gap: spacing.xs, marginBottom: spacing.lg },
-  logo: { fontSize: 36, fontWeight: '800', color: colors.primary },
-  server: { textAlign: 'center', fontSize: 12 },
-});
+const useStyles = makeStyles((c) => ({
+  flex: { flex: 1 },
+  safe: { flex: 1, backgroundColor: c.background },
+  container: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.xxl, gap: spacing.xl },
+  brand: { gap: spacing.xs, marginBottom: spacing.md },
+  logo: { ...type.largeTitle, fontSize: 44, lineHeight: 50, letterSpacing: -1, color: c.text },
+  server: { textAlign: 'center' },
+}));

@@ -1,11 +1,11 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { DateField } from '@/components/DateField';
 import { ExercisePicker } from '@/components/ExercisePicker';
-import { Button, Card, Chip, ErrorBanner, Field, Loading, text } from '@/components/ui';
+import { Button, Chip, ErrorBanner, Field, Loading, useText } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { confirm, notify, showError } from '@/lib/dialogs';
 import {
@@ -17,7 +17,7 @@ import {
   recordTypesFor,
   toDateInput,
 } from '@/lib/format';
-import { colors, radius, spacing } from '@/lib/theme';
+import { fonts, makeStyles, radius, spacing, useColors } from '@/lib/theme';
 import type { Exercise, ManualRecord, PersonalRecord, RecordType } from '@/lib/types';
 import { errorMessage } from '@/lib/useApi';
 
@@ -45,6 +45,9 @@ export default function ManualRecordScreen() {
   const [error, setError] = useState<ApiError | null>(null);
   const [localErrors, setLocalErrors] = useState<{ value?: string; date?: string }>({});
   const [saving, setSaving] = useState(false);
+  const styles = useStyles();
+  const t = useText();
+  const c = useColors();
 
   // Load the entry being edited, or the preset exercise, once.
   useEffect(() => {
@@ -174,34 +177,34 @@ export default function ManualRecordScreen() {
   const generalError = error && !fieldErrors.value && !fieldErrors.achieved_at ? error.message : null;
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
       <Stack.Screen options={{ title: isEditing ? 'Edit record' : 'Add a past record' }} />
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView style={styles.screen} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         {!isEditing ? (
-          <Text style={text.muted}>
+          <Text style={t.muted}>
             Add a best you set before using HatPran. If you beat it in a workout later, the new best takes over.
           </Text>
         ) : null}
         {generalError ? <ErrorBanner message={generalError} /> : null}
 
-        <View style={{ gap: spacing.xs }}>
+        <View style={styles.fieldGroup}>
           <Text style={styles.label}>Exercise</Text>
           <Pressable
             onPress={() => setPickerOpen(true)}
             disabled={isEditing}
             accessibilityRole="button"
             accessibilityLabel={exercise ? `Exercise: ${exercise.name}` : 'Choose exercise'}
-            style={[styles.select, isEditing && { backgroundColor: colors.surfaceMuted }]}
+            style={[styles.select, isEditing && styles.selectLocked]}
           >
-            <Text style={[text.body, { flex: 1 }, !exercise && { color: colors.textMuted }]}>
+            <Text style={[t.body, styles.flex, !exercise && styles.placeholder]}>
               {exercise?.name ?? 'Choose exercise'}
             </Text>
-            {!isEditing ? <Ionicons name="chevron-down" size={18} color={colors.textMuted} /> : null}
+            {!isEditing ? <Ionicons name="chevron-down" size={18} color={c.textMuted} /> : null}
           </Pressable>
         </View>
 
         {exercise ? (
-          <View style={{ gap: spacing.xs }}>
+          <View style={styles.fieldGroup}>
             <Text style={styles.label}>Record</Text>
             <View style={styles.chips}>
               {types.map((type) => (
@@ -217,8 +220,8 @@ export default function ManualRecordScreen() {
         ) : null}
 
         {duplicate ? (
-          <Card style={styles.notice}>
-            <Text style={text.body}>
+          <View style={styles.notice}>
+            <Text style={t.body}>
               You already entered {formatRecordValue(duplicate.record_type, duplicate.value)} for this on{' '}
               {formatDate(duplicate.achieved_at)}.
             </Text>
@@ -227,13 +230,13 @@ export default function ManualRecordScreen() {
               variant="secondary"
               onPress={() => router.replace({ pathname: '/record/manual', params: { id: duplicate.id } })}
             />
-          </Card>
+          </View>
         ) : null}
 
         {exercise && input && !duplicate ? (
           <>
             {current ? (
-              <Text style={text.muted}>
+              <Text style={t.muted}>
                 Current record: {formatRecordValue(current.record_type, current.value)} ·{' '}
                 {current.source === 'manual' ? 'entered by you' : formatDate(current.achieved_at)}
               </Text>
@@ -252,11 +255,11 @@ export default function ManualRecordScreen() {
               onChange={setDate}
               error={localErrors.date ?? fieldErrors.achieved_at?.[0]}
             />
-            <Button title={isEditing ? 'Save changes' : 'Save record'} onPress={save} loading={saving} />
+            <Button title={isEditing ? 'Save changes' : 'Save record'} onPress={save} loading={saving} style={styles.save} />
           </>
         ) : null}
 
-        {isEditing ? <Button title="Delete record" variant="ghost" onPress={remove} /> : null}
+        {isEditing ? <Button title="Delete record" variant="danger" onPress={remove} /> : null}
       </ScrollView>
 
       <ExercisePicker
@@ -272,19 +275,24 @@ export default function ManualRecordScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xl * 2 },
-  label: { fontSize: 13, fontWeight: '600', color: colors.textMuted },
+const useStyles = makeStyles((c) => ({
+  flex: { flex: 1 },
+  screen: { backgroundColor: c.background },
+  container: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: spacing.xxxl, gap: spacing.xl },
+  fieldGroup: { gap: spacing.sm },
+  label: { fontFamily: fonts.medium, fontSize: 15, lineHeight: 20, color: c.textMuted },
   select: {
-    minHeight: 48,
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
     borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    backgroundColor: colors.surface,
+    backgroundColor: c.surfaceMuted,
   },
+  selectLocked: { opacity: 0.7 },
+  placeholder: { color: c.textFaint },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  notice: { gap: spacing.md, backgroundColor: colors.goldMuted, borderColor: colors.goldMuted },
-});
+  notice: { gap: spacing.md, padding: spacing.lg, borderRadius: radius.card, backgroundColor: c.highlight },
+  save: { marginTop: spacing.sm },
+}));

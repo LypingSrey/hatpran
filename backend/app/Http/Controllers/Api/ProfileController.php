@@ -7,6 +7,8 @@ use App\Models\Exercise;
 use App\Models\ExerciseSet;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -32,6 +34,32 @@ class ProfileController extends Controller
         $user->update(collect($validated)->only(['name', 'email'])->all());
 
         return response()->json($user);
+    }
+
+    /**
+     * Deletes the account and everything in it. Needs the password, so a borrowed unlocked phone can't do it.
+     */
+    public function destroy(Request $request): Response
+    {
+        $request->validate(['current_password' => 'required|current_password:sanctum']);
+
+        $user = $request->user();
+        $avatar = $user->avatar_path;
+
+        DB::transaction(function () use ($user) {
+            // exercises.user_id is null-on-delete, which would turn custom exercises into built-ins everyone sees.
+            $user->exercises()->delete();
+            // Tokens are polymorphic, so no foreign key removes them.
+            $user->tokens()->delete();
+            // Workouts, templates and records cascade from the user row.
+            $user->delete();
+        });
+
+        if ($avatar) {
+            Storage::disk('public')->delete($avatar);
+        }
+
+        return response()->noContent();
     }
 
     public function updateAvatar(Request $request): JsonResponse
