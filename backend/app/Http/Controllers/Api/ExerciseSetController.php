@@ -88,6 +88,10 @@ class ExerciseSetController extends Controller
 
         $exerciseSet->delete();
 
+        // Close the gap so the log reads 1, 2, 3 again; this also mends gaps left by older deletes.
+        $exerciseSet->workoutExercise->sets()->get()
+            ->each(fn (ExerciseSet $set, int $index) => $set->update(['set_number' => $index + 1]));
+
         $this->recalculateRecordsIfFinished($exerciseSet->workoutExercise);
 
         return response()->noContent();
