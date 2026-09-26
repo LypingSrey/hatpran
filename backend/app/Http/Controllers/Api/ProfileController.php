@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Exercise;
 use App\Models\ExerciseSet;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,6 +16,7 @@ class ProfileController extends Controller
     public function update(Request $request): JsonResponse
     {
         $user = $request->user();
+        $this->normalizeEmail($request);
 
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
@@ -97,15 +99,22 @@ class ProfileController extends Controller
             ->selectRaw('count(*) as workouts_count, coalesce(sum(duration_seconds), 0) as total_duration_seconds')
             ->first();
 
+        $assistedTypes = implode(', ', array_fill(0, count(Exercise::ASSISTED_TYPES), '?'));
+
         $sets = ExerciseSet::query()
             ->join('workout_exercises', 'workout_exercises.id', '=', 'exercise_sets.workout_exercise_id')
             ->join('workouts', 'workouts.id', '=', 'workout_exercises.workout_id')
+            ->join('exercises', 'exercises.id', '=', 'workout_exercises.exercise_id')
             ->where('workouts.user_id', $user->id)
             ->whereNotNull('workouts.completed_at')
             ->where('exercise_sets.is_completed', true)
             ->toBase()
             ->selectRaw('count(*) as total_sets')
-            ->selectRaw('coalesce(sum(coalesce(exercise_sets.weight_kg, 0) * coalesce(exercise_sets.reps, 0)), 0) as total_volume')
+            ->selectRaw(
+                "coalesce(sum(case when exercises.exercise_type in ({$assistedTypes}) then 0
+                    else coalesce(exercise_sets.weight_kg, 0) * coalesce(exercise_sets.reps, 0) end), 0) as total_volume",
+                Exercise::ASSISTED_TYPES,
+            )
             ->first();
 
         return response()->json([

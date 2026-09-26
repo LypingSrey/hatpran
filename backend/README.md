@@ -10,7 +10,8 @@ library and personal records. Setup steps are in the [main README](../README.md#
   `Authorization: Bearer <token>` on every other request. Tokens come from Laravel Sanctum.
 - Lists are paginated: `?page=2&per_page=50` (up to 100). The response has `data` and `meta.last_page`.
 - `401` means a missing or invalid token, `403` means the item belongs to another user, and `422` returns
-  validation messages in `errors`, keyed by field.
+  validation messages in `errors`, keyed by field. `429` means a rate limit was hit; wait a minute and retry.
+- Emails are stored in lowercase, so signing up, logging in and changing email ignore letter case.
 
 ## Endpoints
 
@@ -18,15 +19,15 @@ library and personal records. Setup steps are in the [main README](../README.md#
 
 | Method | Path | Does |
 | --- | --- | --- |
-| POST | `/register` | Create an account and return a token |
-| POST | `/login` | Return a token for an email and password |
+| POST | `/register` | Create an account and return a token. Limited to 6 per minute per IP address |
+| POST | `/login` | Return a token for an email and password. Limited to 6 per minute per email and IP address |
 | POST | `/logout` | Revoke the current token |
 | GET | `/user` | The signed-in user, including `avatar_url` |
 | PUT | `/user` | Change name and email. A new email needs `current_password`. Limited to 6 per minute |
 | PUT | `/user/password` | Change password. Signs out every other device. Limited to 6 per minute |
 | POST | `/user/avatar` | Upload a profile picture (`avatar`: JPEG, PNG or WebP, up to 5 MB). Limited to 10 per minute |
 | DELETE | `/user/avatar` | Remove the profile picture |
-| GET | `/user/stats` | Lifetime totals: workouts, duration, sets, volume, records |
+| GET | `/user/stats` | Lifetime totals: workouts, duration, sets, volume, records. Assisted exercises add no volume |
 
 ### Workouts and sets
 

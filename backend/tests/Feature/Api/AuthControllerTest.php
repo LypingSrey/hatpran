@@ -48,6 +48,43 @@ class AuthControllerTest extends TestCase
             ->assertJsonValidationErrors(['email' => 'The email has already been taken.']);
     }
 
+    public function test_register_stores_the_email_in_lowercase(): void
+    {
+        $this->postJson('/api/register', [
+            'name' => 'Sam',
+            'email' => ' Sam@Example.com ',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertCreated()
+            ->assertJsonPath('user.email', 'sam@example.com');
+
+        $this->assertDatabaseHas('users', ['email' => 'sam@example.com']);
+    }
+
+    public function test_register_rejects_an_email_taken_in_different_case_with_422(): void
+    {
+        User::factory()->create(['email' => 'taken@example.com']);
+
+        $this->postJson('/api/register', [
+            'name' => 'Someone',
+            'email' => 'Taken@Example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['email' => 'The email has already been taken.']);
+
+        $this->assertDatabaseCount('users', 1);
+    }
+
+    public function test_register_is_limited_to_six_attempts_a_minute_with_429(): void
+    {
+        for ($i = 0; $i < 6; $i++) {
+            $this->postJson('/api/register', [])->assertUnprocessable();
+        }
+
+        $this->postJson('/api/register', [])->assertTooManyRequests();
+    }
+
     public function test_register_rejects_unconfirmed_password_with_422(): void
     {
         $this->postJson('/api/register', [
@@ -67,6 +104,29 @@ class AuthControllerTest extends TestCase
             ->assertOk()
             ->assertJsonPath('user.id', $user->id)
             ->assertJsonStructure(['token']);
+    }
+
+    public function test_login_accepts_the_email_in_any_case(): void
+    {
+        User::factory()->create(['email' => 'sam@example.com']);
+
+        $this->postJson('/api/login', ['email' => ' Sam@Example.COM ', 'password' => 'password'])
+            ->assertOk()
+            ->assertJsonStructure(['user', 'token']);
+    }
+
+    public function test_login_is_limited_to_six_attempts_a_minute_with_429(): void
+    {
+        $user = User::factory()->create();
+
+        for ($i = 0; $i < 6; $i++) {
+            $this->postJson('/api/login', ['email' => $user->email, 'password' => 'wrong-password'])
+                ->assertUnprocessable();
+        }
+
+        // Even the right password is refused until the minute is up.
+        $this->postJson('/api/login', ['email' => $user->email, 'password' => 'password'])
+            ->assertTooManyRequests();
     }
 
     public function test_login_rejects_wrong_password_with_422(): void

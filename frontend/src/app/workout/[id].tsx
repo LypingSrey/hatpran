@@ -7,7 +7,15 @@ import { SetRow } from '@/components/SetRow';
 import { Button, Card, ErrorBanner, Loading, text } from '@/components/ui';
 import { api, type SetInput } from '@/lib/api';
 import { confirm, showError } from '@/lib/dialogs';
-import { formatDate, formatDuration, formatNumber, formatRecordValue, recordLabels, setFieldsFor } from '@/lib/format';
+import {
+  countsTowardVolume,
+  formatDate,
+  formatDuration,
+  formatNumber,
+  formatRecordValue,
+  recordLabels,
+  setFieldsFor,
+} from '@/lib/format';
 import { colors, radius, spacing } from '@/lib/theme';
 import type { ExerciseSet, PersonalRecord, Workout, WorkoutExercise } from '@/lib/types';
 import { useApi } from '@/lib/useApi';
@@ -36,7 +44,11 @@ export default function WorkoutScreen() {
 
   // Totals are derived locally so they update as sets are ticked, before any refetch.
   const completedSets = (workout.exercises ?? []).flatMap((we) => we.sets ?? []).filter((s) => s.is_completed);
-  const totalVolume = completedSets.reduce((sum, s) => sum + (s.weight_kg ?? 0) * (s.reps ?? 0), 0);
+  const totalVolume = (workout.exercises ?? [])
+    .filter((we) => countsTowardVolume(we.exercise?.exercise_type ?? 'weight_reps'))
+    .flatMap((we) => we.sets ?? [])
+    .filter((s) => s.is_completed)
+    .reduce((sum, s) => sum + (s.weight_kg ?? 0) * (s.reps ?? 0), 0);
 
   const replaceWorkout = (updater: (w: Workout) => Workout) =>
     setData((current) => (current ? { data: updater(current.data) } : current));
