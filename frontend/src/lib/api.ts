@@ -1,6 +1,7 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+import { fetchAllPages } from './paginate';
 import type {
   AuthResponse,
   Exercise,
@@ -194,8 +195,10 @@ export const api = {
   deleteTemplate: (id: number) => request<void>('DELETE', `/workout-templates/${id}`),
   startTemplate: (id: number) => request<Data<Workout>>('POST', `/workout-templates/${id}/start`),
 
-  personalRecords: (params: { per_page?: number } = {}) =>
+  personalRecords: (params: { per_page?: number; page?: number } = {}) =>
     request<Paginated<PersonalRecord>>('GET', '/personal-records' + query({ per_page: 100, ...params })),
+  /** Every record, across all pages, for screens that group them by exercise. */
+  allPersonalRecords: () => fetchAllPages((page) => api.personalRecords({ page })),
 
   manualRecords: (params: { exercise_id?: number } = {}) =>
     request<Paginated<ManualRecord>>('GET', '/manual-records' + query({ per_page: 100, ...params })),
