@@ -1,5 +1,5 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { Fragment, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
 
@@ -144,6 +144,15 @@ export default function ProfileScreen() {
         style={styles.logout}
       />
 
+      <View style={styles.legal}>
+        <Link href="/legal/privacy" style={t.link}>
+          Privacy Policy
+        </Link>
+        <Link href="/legal/terms" style={t.link}>
+          Terms of Service
+        </Link>
+      </View>
+
       <Text style={[t.caption, styles.server]}>Server: {API_URL}</Text>
     </ScrollView>
   );
@@ -184,5 +193,6 @@ const useStyles = makeStyles((c) => ({
   emptyLine: { padding: spacing.lg },
   seeAll: { flexDirection: 'row', alignItems: 'center', gap: 2, minHeight: 44 },
   logout: { marginTop: spacing.xl },
+  legal: { flexDirection: 'row', justifyContent: 'center', gap: spacing.xl, marginTop: spacing.md },
   server: { textAlign: 'center' },
 }));

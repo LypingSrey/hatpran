@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { Link } from 'expo-router';
+import { KeyboardAvoidingView, Platform, ScrollView, Text } from 'react-native';
 
-import { Button, ErrorBanner, Field } from '@/components/ui';
+import { Button, ErrorBanner, Field, useText } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { makeStyles, spacing } from '@/lib/theme';
@@ -15,6 +16,7 @@ export default function RegisterScreen() {
   const [error, setError] = useState<ApiError | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const styles = useStyles();
+  const t = useText();
 
   const submit = async () => {
     setSubmitting(true);
@@ -69,6 +71,18 @@ export default function RegisterScreen() {
           loading={submitting}
           disabled={!name || !email || !password || !confirmation}
         />
+
+        <Text style={[t.caption, styles.center]}>
+          By creating an account you agree to the{' '}
+          <Link href="/legal/terms" style={t.link}>
+            Terms of Service
+          </Link>{' '}
+          and{' '}
+          <Link href="/legal/privacy" style={t.link}>
+            Privacy Policy
+          </Link>
+          .
+        </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -76,5 +90,6 @@ export default function RegisterScreen() {
 
 const useStyles = makeStyles((c) => ({
   flex: { flex: 1, backgroundColor: c.background },
+  center: { textAlign: 'center' },
   container: { paddingHorizontal: spacing.xl, paddingTop: spacing.xl, paddingBottom: spacing.xxxl, gap: spacing.xl },
 }));

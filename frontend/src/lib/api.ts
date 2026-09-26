@@ -147,6 +147,7 @@ export const api = {
   stats: () => request<Data<UserStats>>('GET', '/user/stats'),
   uploadAvatar: (form: FormData) => request<User>('POST', '/user/avatar', form),
   deleteAvatar: () => request<User>('DELETE', '/user/avatar'),
+  deleteAccount: (body: { current_password: string }) => request<void>('DELETE', '/user', body),
 
   muscleGroups: () => request<Data<NamedRef[]>>('GET', '/muscle-groups'),
   equipment: () => request<Data<NamedRef[]>>('GET', '/equipment'),
