@@ -77,6 +77,8 @@ function RootNavigator() {
         <Stack.Screen name="record/manual" options={{ title: 'Record', presentation: 'modal' }} />
         <Stack.Screen name="records/[group]" options={{ title: 'Records' }} />
       </Stack.Protected>
+
+      <Stack.Screen name="legal/[doc]" />
     </Stack>
   );
 }

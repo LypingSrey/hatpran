@@ -15,7 +15,7 @@ function asApiError(e: unknown): ApiError {
 }
 
 export default function EditProfileScreen() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, deleteAccount } = useAuth();
 
   const [name, setName] = useState(user?.name ?? '');
   const [email, setEmail] = useState(user?.email ?? '');
@@ -30,6 +30,10 @@ export default function EditProfileScreen() {
   const [passwordError, setPasswordError] = useState<ApiError | null>(null);
   const [passwordSaved, setPasswordSaved] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
+
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteError, setDeleteError] = useState<ApiError | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [pictureBusy, setPictureBusy] = useState<AvatarSource | 'remove' | null>(null);
   const [pictureError, setPictureError] = useState<string | null>(null);
@@ -112,6 +116,24 @@ export default function EditProfileScreen() {
       setSavingPassword(false);
     }
   };
+
+  const confirmDelete = () =>
+    confirm(
+      'Delete your account?',
+      'All your workouts, templates, records and custom exercises will be deleted. This can’t be undone.',
+      'Delete account',
+      async () => {
+        setDeleting(true);
+        setDeleteError(null);
+        try {
+          // Success signs out, which closes this screen.
+          await deleteAccount(deletePassword);
+        } catch (e) {
+          setDeleteError(asApiError(e));
+          setDeleting(false);
+        }
+      },
+    );
 
   const hasFieldErrors = (error: ApiError | null) => error && Object.keys(error.errors).length > 0;
 
@@ -237,6 +259,30 @@ export default function EditProfileScreen() {
           </Card>
         </Section>
 
+        <Section title="Delete account" style={styles.section}>
+          <Card style={styles.card}>
+            <Text style={t.caption}>
+              Permanently deletes your account, workouts, templates, records, custom exercises and profile picture.
+            </Text>
+            {deleteError && !hasFieldErrors(deleteError) ? <ErrorBanner message={deleteError.message} /> : null}
+            <Field
+              label="Current password"
+              value={deletePassword}
+              onChangeText={setDeletePassword}
+              secureTextEntry
+              autoComplete="current-password"
+              textContentType="password"
+              error={deleteError?.field('current_password')}
+            />
+            <Button
+              title="Delete account"
+              variant="danger"
+              onPress={confirmDelete}
+              loading={deleting}
+              disabled={!deletePassword}
+            />
+          </Card>
+        </Section>
       </ScrollView>
     </KeyboardAvoidingView>
   );
