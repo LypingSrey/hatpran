@@ -47,7 +47,7 @@ export function removeHaptic() {
   if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 }
 
-/** The success buzz when a workout is finished. Phones only. */
+/** The success buzz when a workout is finished or a rest is over. Phones only. */
 export function finishHaptic() {
   if (Platform.OS !== 'web') void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 }
