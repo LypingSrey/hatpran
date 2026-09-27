@@ -5,7 +5,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { ExercisePicker } from '@/components/ExercisePicker';
 import { Stepper } from '@/components/Stepper';
-import { Button, Card, ErrorBanner, Field, Rule, Section, useText } from '@/components/ui';
+import { Button, Card, Chip, ErrorBanner, Field, Rule, Section, useText } from '@/components/ui';
 import { api } from '@/lib/api';
 import { offerResumeIfBusy } from '@/lib/dialogs';
 import { makeStyles, spacing, useColors } from '@/lib/theme';
@@ -16,6 +16,8 @@ interface Entry {
   exercise: Exercise;
   sets: number;
 }
+
+const NAME_SUGGESTIONS = ['Morning workout', 'Afternoon workout', 'Evening workout', 'Push day', 'Pull day', 'Leg day', 'Full body'];
 
 function defaultName(): string {
   const hour = new Date().getHours();
@@ -61,7 +63,14 @@ export default function NewWorkoutScreen() {
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
       {error ? <ErrorBanner message={error} /> : null}
-      <Field label="Workout name" value={name} onChangeText={setName} />
+      <View style={styles.name}>
+        <Field label="Workout name" value={name} onChangeText={setName} />
+        <View style={styles.suggestions}>
+          {NAME_SUGGESTIONS.map((suggestion) => (
+            <Chip key={suggestion} label={suggestion} selected={name === suggestion} onPress={() => setName(suggestion)} />
+          ))}
+        </View>
+      </View>
 
       <Section title="Exercises" style={styles.section}>
         {entries.length === 0 ? (
@@ -117,6 +126,8 @@ export default function NewWorkoutScreen() {
 const useStyles = makeStyles((c) => ({
   screen: { backgroundColor: c.background },
   page: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: spacing.xxxl, gap: spacing.lg },
+  name: { gap: spacing.sm },
+  suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   section: { marginTop: spacing.xl },
   entry: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 68, paddingVertical: spacing.sm, paddingLeft: spacing.lg, paddingRight: spacing.sm },
   entryText: { flex: 1, gap: 2 },

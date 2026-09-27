@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ExercisePicker } from '@/components/ExercisePicker';
 import { RestTimerBar, useRestTimer } from '@/components/RestTimer';
 import { SetRow } from '@/components/SetRow';
-import { Button, Card, ErrorBanner, Loading, useText } from '@/components/ui';
+import { Button, Card, ErrorBanner, Field, Loading, useText } from '@/components/ui';
 import { api, type SetInput } from '@/lib/api';
 import { confirm, showError } from '@/lib/dialogs';
 import { useAuth } from '@/lib/auth';
@@ -431,7 +431,10 @@ const badgeIn = new Keyframe({
   100: { opacity: 1, transform: [{ scale: 1 }], easing: motionCurve },
 }).duration(300);
 
-/** Full-screen congratulations after Finish: the session's totals and any new records, then back to Workouts. */
+/**
+ * Full-screen congratulations after Finish: the session's totals, any new records and a box for notes on how it
+ * went, then back to Workouts.
+ */
 function WorkoutComplete({
   workout,
   volume,
@@ -451,6 +454,8 @@ function WorkoutComplete({
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const firstName = user?.name.trim().split(/\s+/)[0];
+  const [notes, setNotes] = useState(workout.notes ?? '');
+  const [saving, setSaving] = useState(false);
   const exercises = (workout.exercises ?? []).filter((we) => we.sets?.some((s) => s.is_completed)).length;
   const stats = [
     { value: formatDuration(workout.duration_seconds), label: 'Duration' },
@@ -459,10 +464,29 @@ function WorkoutComplete({
     { value: String(exercises), label: exercises === 1 ? 'exercise' : 'exercises' },
   ];
 
+  // Save the notes on the way out; if that fails, stay here with the text kept so it can be tried again.
+  const done = async () => {
+    const trimmed = notes.trim() || null;
+    if (trimmed !== (workout.notes ?? null)) {
+      setSaving(true);
+      try {
+        await api.updateWorkout(workout.id, { notes: trimmed });
+      } catch (e) {
+        setSaving(false);
+        showError(e);
+        return;
+      }
+    }
+    onDone();
+  };
+
   return (
-    <Modal visible animationType="fade" onRequestClose={onDone} statusBarTranslucent>
-      <View style={[styles.done, { paddingTop: insets.top + spacing.xl, paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
-        <ScrollView contentContainerStyle={styles.doneBody}>
+    <Modal visible animationType="fade" onRequestClose={() => void done()} statusBarTranslucent>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={[styles.done, { paddingTop: insets.top + spacing.xl, paddingBottom: Math.max(insets.bottom, spacing.lg) }]}
+      >
+        <ScrollView contentContainerStyle={styles.doneBody} keyboardShouldPersistTaps="handled">
           <Animated.View entering={badgeIn} style={styles.doneBadge}>
             <Ionicons name="checkmark" size={48} color={c.onSuccess} />
           </Animated.View>
@@ -485,6 +509,15 @@ function WorkoutComplete({
                 </View>
               ))}
             </Card>
+
+            <Field
+              label="How did the workout go?"
+              value={notes}
+              onChangeText={setNotes}
+              placeholder="Energy, form, anything to remember next time (optional)"
+              multiline
+              style={styles.notes}
+            />
 
             {records.length > 0 ? (
               <Card style={styles.finished}>
@@ -509,8 +542,8 @@ function WorkoutComplete({
           </Animated.View>
         </ScrollView>
 
-        <Button title="Done" onPress={onDone} />
-      </View>
+        <Button title="Done" onPress={() => void done()} loading={saving} />
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -579,6 +612,7 @@ const useStyles = makeStyles((c) => ({
   doneStats: { flexDirection: 'row', justifyContent: 'space-around', gap: spacing.sm, paddingVertical: spacing.lg },
   doneStat: { alignItems: 'center', gap: 2 },
   center: { textAlign: 'center' },
+  notes: { minHeight: 96, paddingTop: spacing.sm, textAlignVertical: 'top' },
   highlighted: {
     ...type.bodyStrong,
     fontVariant: ['tabular-nums'],
