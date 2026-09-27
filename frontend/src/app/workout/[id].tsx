@@ -1,8 +1,8 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
-import Animated, { LayoutAnimationConfig } from 'react-native-reanimated';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import Animated, { Keyframe, LayoutAnimationConfig } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ExercisePicker } from '@/components/ExercisePicker';
@@ -10,7 +10,8 @@ import { SetRow } from '@/components/SetRow';
 import { Button, Card, ErrorBanner, Loading, useText } from '@/components/ui';
 import { api, type SetInput } from '@/lib/api';
 import { confirm, showError } from '@/lib/dialogs';
-import { easeOut, enter } from '@/lib/motion';
+import { useAuth } from '@/lib/auth';
+import { easeOut, enter, finishHaptic, motionCurve } from '@/lib/motion';
 import {
   countsTowardVolume,
   formatClock,
@@ -179,6 +180,7 @@ export default function WorkoutScreen() {
         const response = await api.completeWorkout(workout.id);
         setData(() => ({ data: response.data }));
         setNewRecords(response.personal_records);
+        finishHaptic();
       } catch (e) {
         showError(e);
       } finally {
@@ -242,12 +244,6 @@ export default function WorkoutScreen() {
                 {workout.template ? ` · ${workout.template.name}` : ''}
               </Text>
             </View>
-
-            {newRecords ? (
-              <Animated.View entering={enter}>
-                <FinishedNote records={newRecords} />
-              </Animated.View>
-            ) : null}
 
             <Card style={[styles.summary, compact && styles.summaryCompact]}>
               <View style={styles.summaryRow}>
@@ -389,6 +385,20 @@ export default function WorkoutScreen() {
         onDone={(picked) => void addExercises(picked)}
       />
 
+      {newRecords ? (
+        <WorkoutComplete
+          workout={workout}
+          volume={totalVolume}
+          setsDone={completedSets.length}
+          records={newRecords}
+          onDone={() => {
+            // Back to the Workouts tab, where the finished workout now heads the history.
+            router.dismissAll();
+            router.navigate('/');
+          }}
+        />
+      ) : null}
+
       {/* Finish sits under the thumb for the whole session. */}
       {!workout.is_completed ? (
         <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
@@ -399,39 +409,93 @@ export default function WorkoutScreen() {
   );
 }
 
-function FinishedNote({ records }: { records: PersonalRecord[] }) {
+// The check settles in from 80% rather than growing out of nothing.
+const badgeIn = new Keyframe({
+  0: { opacity: 0, transform: [{ scale: 0.8 }] },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: motionCurve },
+}).duration(300);
+
+/** Full-screen congratulations after Finish: the session's totals and any new records, then back to Workouts. */
+function WorkoutComplete({
+  workout,
+  volume,
+  setsDone,
+  records,
+  onDone,
+}: {
+  workout: Workout;
+  volume: number;
+  setsDone: number;
+  records: PersonalRecord[];
+  onDone: () => void;
+}) {
   const styles = useStyles();
   const t = useText();
   const c = useColors();
+  const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const firstName = user?.name.trim().split(/\s+/)[0];
+  const exercises = (workout.exercises ?? []).filter((we) => we.sets?.some((s) => s.is_completed)).length;
+  const stats = [
+    { value: formatDuration(workout.duration_seconds), label: 'Duration' },
+    { value: formatNumber(volume, 0), label: 'kg volume' },
+    { value: String(setsDone), label: setsDone === 1 ? 'set' : 'sets' },
+    { value: String(exercises), label: exercises === 1 ? 'exercise' : 'exercises' },
+  ];
 
-  if (records.length === 0) {
-    return (
-      <Card style={styles.finished}>
-        <View style={styles.finishedHead}>
-          <Ionicons name="checkmark-circle" size={24} color={c.success} />
-          <Text style={t.heading}>Workout complete</Text>
-        </View>
-        <Text style={t.muted}>No new records this time. Keep pushing.</Text>
-      </Card>
-    );
-  }
   return (
-    <Card style={styles.finished}>
-      <View style={styles.finishedHead}>
-        <Ionicons name="trophy" size={22} color={c.record} />
-        <Text style={t.heading}>
-          {records.length} new personal record{records.length === 1 ? '' : 's'}
-        </Text>
+    <Modal visible animationType="fade" onRequestClose={onDone} statusBarTranslucent>
+      <View style={[styles.done, { paddingTop: insets.top + spacing.xl, paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
+        <ScrollView contentContainerStyle={styles.doneBody}>
+          <Animated.View entering={badgeIn} style={styles.doneBadge}>
+            <Ionicons name="checkmark" size={48} color={c.onSuccess} />
+          </Animated.View>
+          <Animated.View entering={enter.delay(120)} style={styles.doneHead}>
+            <Text style={[t.largeTitle, styles.center]} accessibilityRole="header">
+              Workout complete
+            </Text>
+            <Text style={[t.muted, styles.center]}>
+              {firstName ? `Nice work, ${firstName}. ` : 'Nice work. '}
+              {workout.name} is in the books.
+            </Text>
+          </Animated.View>
+
+          <Animated.View entering={enter.delay(200)} style={styles.doneCards}>
+            <Card style={styles.doneStats}>
+              {stats.map((stat) => (
+                <View key={stat.label} style={styles.doneStat}>
+                  <Text style={t.stat}>{stat.value}</Text>
+                  <Text style={t.caption}>{stat.label}</Text>
+                </View>
+              ))}
+            </Card>
+
+            {records.length > 0 ? (
+              <Card style={styles.finished}>
+                <View style={styles.finishedHead}>
+                  <Ionicons name="trophy" size={22} color={c.record} />
+                  <Text style={t.heading}>
+                    {records.length} new personal record{records.length === 1 ? '' : 's'}
+                  </Text>
+                </View>
+                {records.map((r) => (
+                  <View key={r.id} style={styles.recordLine}>
+                    <Text style={[t.body, styles.recordName]}>
+                      {r.exercise?.name} · {recordLabels[r.record_type]}
+                    </Text>
+                    <Text style={styles.highlighted}>{formatRecordValue(r.record_type, r.value)}</Text>
+                  </View>
+                ))}
+              </Card>
+            ) : (
+              <Text style={[t.muted, styles.center]}>No new records this time. Keep pushing.</Text>
+            )}
+          </Animated.View>
+        </ScrollView>
+
+        <Button title="Done" onPress={onDone} />
       </View>
-      {records.map((r) => (
-        <View key={r.id} style={styles.recordLine}>
-          <Text style={[t.body, styles.flex]}>
-            {r.exercise?.name} · {recordLabels[r.record_type]}
-          </Text>
-          <Text style={styles.highlighted}>{formatRecordValue(r.record_type, r.value)}</Text>
-        </View>
-      ))}
-    </Card>
+    </Modal>
   );
 }
 
@@ -482,6 +546,22 @@ const useStyles = makeStyles((c) => ({
   finished: { gap: spacing.sm },
   finishedHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   recordLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 36 },
+  recordName: { flex: 1 },
+  done: { flex: 1, backgroundColor: c.background, paddingHorizontal: spacing.lg, gap: spacing.lg },
+  doneBody: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: spacing.xl, paddingVertical: spacing.xl },
+  doneBadge: {
+    width: 96,
+    height: 96,
+    borderRadius: radius.round,
+    backgroundColor: c.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  doneHead: { gap: spacing.sm, alignItems: 'center', maxWidth: 360 },
+  doneCards: { alignSelf: 'stretch', gap: spacing.md },
+  doneStats: { flexDirection: 'row', justifyContent: 'space-around', gap: spacing.sm, paddingVertical: spacing.lg },
+  doneStat: { alignItems: 'center', gap: 2 },
+  center: { textAlign: 'center' },
   highlighted: {
     ...type.bodyStrong,
     fontVariant: ['tabular-nums'],
