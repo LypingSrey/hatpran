@@ -6,6 +6,7 @@ import Animated, { Keyframe, LayoutAnimationConfig } from 'react-native-reanimat
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ExercisePicker } from '@/components/ExercisePicker';
+import { RestTimerBar, useRestTimer } from '@/components/RestTimer';
 import { SetRow } from '@/components/SetRow';
 import { Button, Card, ErrorBanner, Loading, useText } from '@/components/ui';
 import { api, type SetInput } from '@/lib/api';
@@ -36,6 +37,7 @@ export default function WorkoutScreen() {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [addingExercises, setAddingExercises] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const rest = useRestTimer();
   const styles = useStyles();
   const t = useText();
   const c = useColors();
@@ -74,6 +76,15 @@ export default function WorkoutScreen() {
   // The next set to do in this session: the first unticked one, in order.
   const currentSetId = workout.is_completed ? null : (allSets.find((s) => !s.is_completed)?.id ?? null);
 
+  // The first unticked set other than the one just done, named for the rest reminder.
+  const nextSetAfter = (done: ExerciseSet): string | undefined => {
+    for (const we of workout.exercises ?? []) {
+      const next = (we.sets ?? []).find((s) => !s.is_completed && s.id !== done.id);
+      if (next) return `${we.exercise?.name ?? 'Exercise'}, set ${next.set_number}`;
+    }
+    return undefined;
+  };
+
   const replaceWorkout = (updater: (w: Workout) => Workout) =>
     setData((current) => (current ? { data: updater(current.data) } : current));
 
@@ -86,6 +97,8 @@ export default function WorkoutScreen() {
   // Show the change at once (ticks turn green without waiting on gym signal), then take the server's
   // version; if the save fails, put the set back as it was and say so.
   const saveSet = async (we: WorkoutExercise, set: ExerciseSet, changes: SetInput) => {
+    // Ticking a set during the session starts the rest before the next one.
+    if (changes.is_completed && !set.is_completed && !workout.is_completed) rest.start(nextSetAfter(set));
     replaceSets(we.id, (sets) => sets.map((s) => (s.id === set.id ? { ...s, ...changes } : s)));
     try {
       const { data: updated } = await api.updateSet(set.id, changes);
@@ -180,6 +193,7 @@ export default function WorkoutScreen() {
         const response = await api.completeWorkout(workout.id);
         setData(() => ({ data: response.data }));
         setNewRecords(response.personal_records);
+        rest.stop();
         finishHaptic();
       } catch (e) {
         showError(e);
@@ -204,6 +218,7 @@ export default function WorkoutScreen() {
     confirm('Delete workout?', 'This workout and its sets will be permanently deleted.', 'Delete', async () => {
       try {
         await api.deleteWorkout(workout.id);
+        rest.stop();
         router.back();
       } catch (e) {
         showError(e);
@@ -232,7 +247,7 @@ export default function WorkoutScreen() {
       />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
         <ScrollView
-          contentContainerStyle={[styles.page, !workout.is_completed && { paddingBottom: 120 + insets.bottom }]}
+          contentContainerStyle={[styles.page, !workout.is_completed && { paddingBottom: 190 + insets.bottom }]}
           keyboardShouldPersistTaps="handled"
         >
           {/* Rows already there when the screen opens just appear; only sets added or removed afterwards animate. */}
@@ -402,6 +417,7 @@ export default function WorkoutScreen() {
       {/* Finish sits under the thumb for the whole session. */}
       {!workout.is_completed ? (
         <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, spacing.lg) }]}>
+          <RestTimerBar timer={rest} />
           <Button title="Finish workout" onPress={finish} loading={finishing} />
         </View>
       ) : null}
@@ -537,6 +553,7 @@ const useStyles = makeStyles((c) => ({
     left: 0,
     right: 0,
     bottom: 0,
+    gap: spacing.md,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
     backgroundColor: c.background,
