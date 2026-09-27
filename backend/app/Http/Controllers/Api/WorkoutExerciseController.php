@@ -71,6 +71,8 @@ class WorkoutExerciseController extends Controller
             return $workoutExercise;
         });
 
+        $workoutExercise->setRelation('previousSets', $workout->previousSetsFor($workoutExercise->exercise_id));
+
         return new WorkoutExerciseResource(
             $workoutExercise->load(['exercise.muscleGroup', 'exercise.equipment', 'sets'])
         );

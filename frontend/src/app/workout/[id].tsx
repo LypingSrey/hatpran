@@ -345,7 +345,7 @@ export default function WorkoutScreen() {
                           set={set}
                           exerciseType={exerciseType}
                           isCurrent={set.id === currentSetId}
-                          hints={index > 0 ? sets[index - 1] : {}}
+                          hints={we.previous_sets?.[index] ?? (index > 0 ? sets[index - 1] : {})}
                           onSave={(changes) => saveSet(we, set, changes)}
                           onDelete={() => deleteSet(we, set)}
                           onRemove={() => void removeSet(we, set)}
