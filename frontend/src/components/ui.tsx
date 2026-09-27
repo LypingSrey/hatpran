@@ -35,9 +35,12 @@ export const useText = makeStyles((c) => ({
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'destructive';
 
-/** Pill buttons: primary is solid blue, secondary a soft tonal fill, ghost and danger are text only. */
+/**
+ * Pill buttons: primary is solid blue, destructive solid red, secondary a soft tonal fill, ghost and danger are
+ * text only.
+ */
 export function Button({
   title,
   onPress,
@@ -60,7 +63,7 @@ export function Button({
   const reduceMotion = useReduceMotion();
   const [pressed, setPressed] = useState(false);
   const isDisabled = disabled || loading;
-  const textColor = { primary: c.onAccent, secondary: c.accent, ghost: c.accent, danger: c.danger }[variant];
+  const textColor = { primary: c.onAccent, secondary: c.accent, ghost: c.accent, danger: c.danger, destructive: c.onAccent }[variant];
   return (
     <AnimatedPressable
       accessibilityRole="button"
@@ -281,6 +284,7 @@ const useStyles = makeStyles((c) => ({
   secondary: { backgroundColor: c.surfaceMuted, minHeight: 48 },
   ghost: { backgroundColor: 'transparent', minHeight: 44, paddingHorizontal: spacing.md },
   danger: { backgroundColor: 'transparent', minHeight: 44, paddingHorizontal: spacing.md },
+  destructive: { backgroundColor: c.dangerFill },
   pressed: { opacity: 0.6 },
   disabled: { opacity: 0.4 },
   buttonText: { ...type.bodyStrong },

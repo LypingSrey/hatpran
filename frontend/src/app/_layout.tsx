@@ -8,10 +8,11 @@ import {
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useMemo } from 'react';
-import { Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
+import { ConfirmDialogHost } from '@/components/ConfirmDialog';
 import { Button, Loading, useText } from '@/components/ui';
 import { AppearanceProvider, useAppearance } from '@/lib/appearanceContext';
 import { AuthProvider, useAuth } from '@/lib/auth';
@@ -138,6 +139,8 @@ function ThemedRoot() {
           <AuthProvider>
             <StatusBar style={scheme === 'dark' ? 'light' : 'dark'} />
             <RootNavigator />
+            {/* Native confirmations use Alert; web ones need this host. */}
+            {Platform.OS === 'web' ? <ConfirmDialogHost /> : null}
           </AuthProvider>
         </ThemeProvider>
       </SafeAreaProvider>
