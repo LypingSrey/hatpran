@@ -191,6 +191,7 @@ export default function WorkoutScreen() {
         `${pending} set${pending === 1 ? ' is' : 's are'} not ticked and won't count toward volume or records.`,
         'Finish',
         doFinish,
+        { destructive: false },
       );
     } else {
       await doFinish();
