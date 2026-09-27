@@ -103,6 +103,8 @@ class WorkoutTemplateController extends Controller
         }
 
         $workout = DB::transaction(function () use ($request, $workoutTemplate) {
+            $request->user()->ensureNoWorkoutInProgress();
+
             $workout = $request->user()->workouts()->create([
                 'name' => $workoutTemplate->name,
                 'notes' => $workoutTemplate->notes,

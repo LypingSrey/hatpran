@@ -66,6 +66,8 @@ class WorkoutController extends Controller
         $exercises = $request->input('exercises') ?? [];
 
         $workout = DB::transaction(function () use ($user, $validated, $exercises) {
+            $user->ensureNoWorkoutInProgress();
+
             $workout = $user->workouts()->create([
                 'name' => $validated['name'],
                 'notes' => $validated['notes'] ?? null,
@@ -150,6 +152,10 @@ class WorkoutController extends Controller
 
             if (array_key_exists('completed_at', $validated)) {
                 if ($validated['completed_at'] === null) {
+                    if ($wasCompleted) {
+                        $workout->user->ensureNoWorkoutInProgress();
+                    }
+
                     $workout->update(['completed_at' => null, 'duration_seconds' => null]);
                 } else {
                     $workout->markCompleted(Carbon::parse($validated['completed_at']));

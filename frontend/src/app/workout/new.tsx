@@ -7,6 +7,7 @@ import { ExercisePicker } from '@/components/ExercisePicker';
 import { Stepper } from '@/components/Stepper';
 import { Button, Card, ErrorBanner, Field, Rule, Section, useText } from '@/components/ui';
 import { api } from '@/lib/api';
+import { offerResumeIfBusy } from '@/lib/dialogs';
 import { makeStyles, spacing, useColors } from '@/lib/theme';
 import type { Exercise } from '@/lib/types';
 import { errorMessage } from '@/lib/useApi';
@@ -46,8 +47,9 @@ export default function NewWorkoutScreen() {
       });
       router.replace(`/workout/${data.id}`);
     } catch (e) {
-      setError(errorMessage(e));
       setSubmitting(false);
+      if (await offerResumeIfBusy(e)) return;
+      setError(errorMessage(e));
     }
   };
 
