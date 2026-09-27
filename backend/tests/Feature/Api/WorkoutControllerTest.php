@@ -564,4 +564,25 @@ class WorkoutControllerTest extends TestCase
             ->assertOk()
             ->assertJsonCount(0, 'data.exercises.0.previous_sets');
     }
+
+    public function test_only_one_workout_can_be_in_progress_at_a_time(): void
+    {
+        $user = User::factory()->create();
+        $active = Workout::factory()->for($user)->inProgress()->create(['name' => 'Leg Day']);
+        $finished = Workout::factory()->for($user)->create();
+        $template = WorkoutTemplate::factory()->for($user)->create();
+
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/workouts', ['name' => 'Another'])
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Finish or delete “Leg Day” before starting another workout.');
+        $this->postJson("/api/workout-templates/{$template->id}/start")->assertStatus(409);
+        $this->putJson("/api/workouts/{$finished->id}", ['completed_at' => null])->assertStatus(409);
+        $this->assertSame(1, $user->workouts()->whereNull('completed_at')->count());
+
+        // Finishing (or deleting) it frees the slot.
+        $this->postJson("/api/workouts/{$active->id}/complete")->assertOk();
+        $this->postJson('/api/workouts', ['name' => 'Another'])->assertCreated();
+    }
 }

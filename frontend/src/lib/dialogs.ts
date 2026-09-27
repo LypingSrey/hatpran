@@ -1,5 +1,8 @@
+import { router } from 'expo-router';
 import { Alert, Platform } from 'react-native';
 
+import { api, ApiError } from './api';
+import type { Workout } from './types';
 import { errorMessage } from './useApi';
 
 export interface ConfirmRequest {
@@ -58,3 +61,21 @@ export function showError(e: unknown) {
   else Alert.alert('Could not save', message);
 }
 
+/** Only one workout runs at a time: point back to the one in progress instead of starting another. */
+export function offerResume(workout: Workout) {
+  confirm(
+    'Workout in progress',
+    `Finish or delete “${workout.name}” before starting a new one.`,
+    'Resume',
+    () => router.push(`/workout/${workout.id}`),
+    { destructive: false },
+  );
+}
+
+/** When a start was refused because a workout is in progress (409), offer to resume it. Returns whether it did. */
+export async function offerResumeIfBusy(e: unknown): Promise<boolean> {
+  if (!(e instanceof ApiError && e.status === 409)) return false;
+  const active = (await api.workouts({ in_progress: true, per_page: 1 }).catch(() => null))?.data[0];
+  if (active) offerResume(active);
+  return !!active;
+}
