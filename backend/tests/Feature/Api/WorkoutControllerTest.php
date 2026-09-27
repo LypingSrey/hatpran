@@ -522,4 +522,46 @@ class WorkoutControllerTest extends TestCase
         $this->putJson("/api/workouts/{$workout->id}", ['completed_at' => now()->addMinute()->toIso8601String()])
             ->assertOk();
     }
+
+    public function test_show_includes_last_finished_sessions_ticked_sets_for_each_exercise(): void
+    {
+        $user = User::factory()->create();
+        $exercise = Exercise::factory()->create(['user_id' => null]);
+
+        $older = Workout::factory()->for($user)->create(['started_at' => now()->subDays(7), 'completed_at' => now()->subDays(7)]);
+        ExerciseSet::factory()->for(WorkoutExercise::factory()->for($older)->create(['exercise_id' => $exercise->id]))
+            ->create(['set_number' => 1, 'weight_kg' => 50, 'reps' => 10]);
+
+        $last = Workout::factory()->for($user)->create(['started_at' => now()->subDays(2), 'completed_at' => now()->subDays(2)]);
+        $lastExercise = WorkoutExercise::factory()->for($last)->create(['exercise_id' => $exercise->id]);
+        ExerciseSet::factory()->for($lastExercise)->create(['set_number' => 2, 'weight_kg' => 65, 'reps' => 6]);
+        ExerciseSet::factory()->for($lastExercise)->create(['set_number' => 1, 'weight_kg' => 60, 'reps' => 8]);
+        ExerciseSet::factory()->for($lastExercise)->incomplete()->create(['set_number' => 3, 'weight_kg' => 70]);
+
+        // Another user's newer session and today's unfinished one don't count.
+        $theirs = Workout::factory()->for(User::factory())->create(['started_at' => now()->subDay(), 'completed_at' => now()->subDay()]);
+        ExerciseSet::factory()->for(WorkoutExercise::factory()->for($theirs)->create(['exercise_id' => $exercise->id]))->create();
+
+        $today = Workout::factory()->for($user)->inProgress()->create();
+        WorkoutExercise::factory()->for($today)->create(['exercise_id' => $exercise->id]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson("/api/workouts/{$today->id}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data.exercises.0.previous_sets')
+            ->assertJsonPath('data.exercises.0.previous_sets.0.weight_kg', 60)
+            ->assertJsonPath('data.exercises.0.previous_sets.0.reps', 8)
+            ->assertJsonPath('data.exercises.0.previous_sets.1.weight_kg', 65);
+
+        // Adding it mid-session brings last time's sets too.
+        $this->postJson("/api/workouts/{$today->id}/exercises", ['exercise_id' => $exercise->id])
+            ->assertCreated()
+            ->assertJsonCount(2, 'data.previous_sets');
+
+        // The first time an exercise is done there is nothing to show.
+        $this->getJson("/api/workouts/{$older->id}")
+            ->assertOk()
+            ->assertJsonCount(0, 'data.exercises.0.previous_sets');
+    }
 }

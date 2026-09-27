@@ -114,6 +114,7 @@ class WorkoutController extends Controller
 
         return new WorkoutResource(
             $workout->load(['workoutExercises.exercise.muscleGroup', 'workoutExercises.exercise.equipment', 'workoutExercises.sets', 'template'])
+                ->loadPreviousSets()
         );
     }
 
@@ -214,7 +215,7 @@ class WorkoutController extends Controller
         }
 
         return (new WorkoutResource(
-            $workout->load(['workoutExercises.exercise', 'workoutExercises.sets', 'template'])
+            $workout->load(['workoutExercises.exercise', 'workoutExercises.sets', 'template'])->loadPreviousSets()
         ))->additional(['personal_records' => PersonalRecordResource::collection($personalRecords)]);
     }
 }

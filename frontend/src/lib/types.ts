@@ -71,6 +71,8 @@ export interface WorkoutExercise {
   notes: string | null;
   exercise?: Exercise;
   sets?: ExerciseSet[];
+  /** Ticked sets from the last finished workout with this exercise; empty the first time. */
+  previous_sets?: ExerciseSet[];
 }
 
 export interface TemplateExercise {
