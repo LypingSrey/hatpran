@@ -40,7 +40,7 @@ class WorkoutController extends Controller
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'notes' => 'nullable|string',
+            'notes' => 'nullable|string|max:5000',
             'workout_template_id' => [
                 'nullable',
                 'integer',
@@ -55,7 +55,7 @@ class WorkoutController extends Controller
                 ),
             ],
             'exercises.*.order' => 'nullable|integer|min:0',
-            'exercises.*.notes' => 'nullable|string',
+            'exercises.*.notes' => 'nullable|string|max:5000',
             'exercises.*.sets' => 'nullable|array',
             'exercises.*.sets.*.set_type' => 'nullable|in:normal,warmup,drop,failure',
             ...ExerciseSet::measurementRules('exercises.*.sets.*.'),
@@ -129,7 +129,7 @@ class WorkoutController extends Controller
         // Times can't be in the future; a few minutes' slack covers a phone clock that runs slightly fast.
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
-            'notes' => 'nullable|string',
+            'notes' => 'nullable|string|max:5000',
             'started_at' => 'sometimes|required|date|before_or_equal:+5 minutes',
             'completed_at' => 'nullable|date|before_or_equal:+5 minutes',
         ], [
