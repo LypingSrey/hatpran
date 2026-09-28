@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import Animated, { Keyframe, LayoutAnimationConfig } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -456,6 +456,7 @@ function WorkoutComplete({
   const firstName = user?.name.trim().split(/\s+/)[0];
   const [notes, setNotes] = useState(workout.notes ?? '');
   const [saving, setSaving] = useState(false);
+  const leaving = useRef(false);
   const exercises = (workout.exercises ?? []).filter((we) => we.sets?.some((s) => s.is_completed)).length;
   const stats = [
     { value: formatDuration(workout.duration_seconds), label: 'Duration' },
@@ -465,13 +466,17 @@ function WorkoutComplete({
   ];
 
   // Save the notes on the way out; if that fails, stay here with the text kept so it can be tried again.
+  // The ref, not `saving`, stops a second Done or Android back press that lands before the next render.
   const done = async () => {
+    if (leaving.current) return;
+    leaving.current = true;
     const trimmed = notes.trim() || null;
     if (trimmed !== (workout.notes ?? null)) {
       setSaving(true);
       try {
         await api.updateWorkout(workout.id, { notes: trimmed });
       } catch (e) {
+        leaving.current = false;
         setSaving(false);
         showError(e);
         return;

@@ -1,6 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import * as Notifications from 'expo-notifications';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -18,6 +18,11 @@ const MAX_SECONDS = 30 * 60;
 const CHANNEL = 'rest-timer';
 const TITLE = 'Rest is over';
 const isNative = Platform.OS !== 'web';
+
+// Kept outside the hook so leaving the workout screen and coming back resumes the countdown.
+// ponytail: one shared rest, fine while only one workout can be in progress; key by workout id if that changes.
+const reminder: { current: Promise<string | null> | null } = { current: null };
+const kept = { endsAt: null as number | null, nextUp: 'Time for your next set.' };
 
 // While the workout screen is open it shows the reminder itself; the banner is for when the lifter is elsewhere.
 let screenOpen = false;
@@ -82,11 +87,16 @@ export type RestTimer = ReturnType<typeof useRestTimer>;
  */
 export function useRestTimer() {
   const [seconds, setSeconds] = useState(DEFAULT_SECONDS);
-  const [endsAt, setEndsAt] = useState<number | null>(null);
+  // A rest that ran out while away isn't brought back; its notification already went off.
+  const [endsAt, setEndsAt] = useState(() => (kept.endsAt !== null && kept.endsAt > Date.now() ? kept.endsAt : null));
   const [now, setNow] = useState(() => Date.now());
   const [over, setOver] = useState(false);
-  const reminder = useRef<Promise<string | null> | null>(null);
-  const [nextUp, setNextUp] = useState('Time for your next set.');
+  const [nextUp, setNextUp] = useState(kept.nextUp);
+
+  useEffect(() => {
+    kept.endsAt = endsAt;
+    kept.nextUp = nextUp;
+  }, [endsAt, nextUp]);
 
   useEffect(() => {
     void getItem(STORAGE_KEY).then((saved) => {

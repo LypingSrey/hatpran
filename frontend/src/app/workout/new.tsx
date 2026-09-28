@@ -17,7 +17,8 @@ interface Entry {
   sets: number;
 }
 
-const NAME_SUGGESTIONS = ['Morning workout', 'Afternoon workout', 'Evening workout', 'Push day', 'Pull day', 'Leg day', 'Full body'];
+// Shown after today's time-of-day name, so there's never a "Morning workout" chip in the evening.
+const NAME_SUGGESTIONS = ['Push day', 'Pull day', 'Leg day', 'Full body'];
 
 function defaultName(): string {
   const hour = new Date().getHours();
@@ -66,7 +67,7 @@ export default function NewWorkoutScreen() {
       <View style={styles.name}>
         <Field label="Workout name" value={name} onChangeText={setName} />
         <View style={styles.suggestions}>
-          {NAME_SUGGESTIONS.map((suggestion) => (
+          {[defaultName(), ...NAME_SUGGESTIONS].map((suggestion) => (
             <Chip key={suggestion} label={suggestion} selected={name === suggestion} onPress={() => setName(suggestion)} />
           ))}
         </View>
