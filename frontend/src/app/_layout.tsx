@@ -18,6 +18,9 @@ import { AppearanceProvider, useAppearance } from '@/lib/appearanceContext';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { fonts, makeStyles, spacing, type, useColors, useScheme } from '@/lib/theme';
 
+// Opening a screen by URL (or reloading on web) puts the tabs under it, so it still gets a back button.
+export const unstable_settings = { initialRouteName: '(tabs)' };
+
 /** Shown when a saved sign-in couldn't be checked on launch, e.g. no signal at the gym. */
 function CantConnect({ message }: { message: string }) {
   const { retryRestore, signOut } = useAuth();
